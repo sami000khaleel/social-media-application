@@ -1,0 +1,19 @@
+{
+    "createPost":"you have create <subject.id>",
+    "deletePost":"you have deleted <subject.id>",
+"updatepost":"you have updated your Post <subject.id>"
+,"sharePost":"<notifier> has shared your post <subject.id>",
+"createComment":"<user> has commented on your post <subject.id>",
+"updateComment":"you have updated your comment",
+"likeComment":"<notifier> has liked your comment <subject.id>",
+"replyComment":"<notifier> has replied to your comment <subject.id>",
+"deleteComment":"your comment has been deleted <subject.id>",
+"followUser":"<user> has followed you",
+"updateUser":"your profile has been updated",
+"approvePost":"your post <model.id> has been approved",
+"addedAdmin":"you have been appointed as admin by <user>",
+"newManager":"you have been appointed the new manager",
+"removePost":"your post on <community> has been removed",
+"memberJoin":"wellcome to this <community>",
+"adminOut":"you are no admin any more <community> (if notifier is empty) || <notifier> is no admin any more at <community>"
+}
