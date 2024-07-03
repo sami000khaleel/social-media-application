@@ -1,4 +1,4 @@
-#Social  media  app  with  content  suggestion  algorithm
+# Social  media  app  with  content  suggestion  algorithm
 content  classification  user  protection  via  ai .
 ---
 Has  all  the  features  that  you  would  find  in  a  regular  modern  social  media  application.
