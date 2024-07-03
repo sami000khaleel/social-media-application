@@ -2,8 +2,8 @@
 content  classification  user  protection  via  ai .
 ---
 Has  all  the  features  that  you  would  find  in  a  regular  modern  social  media  application such as :
+- content suggestion algorithm that tracks the change of interest of different categoreies of content based on the users actions.
 - sharing posts.
-*- content suggestion algorithm that tracks the change of interest of different categoreies of content based on the users actions.*
 - replying to comments and replying to replies.
 - communties managment.
 ---
