@@ -406,9 +406,9 @@ I'm here through the **Chancenkarte (Opportunity Card) visa** and excited to joi
 
 **Let's connect:**
 
-- 📧 Email: [your.email@example.com]
+- 📧 Email: [sami000khaleel@gmail.com]
 - 💼 LinkedIn: [linkedin.com/in/your-handle]
-- 🐙 GitHub: [github.com/your-handle]
+- 🐙 GitHub: [https://github.com/sami000khalee]
 
 If you're hiring junior developers, know of an opportunity, or just want to give feedback on this project — I'd love to hear from you.
 
