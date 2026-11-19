@@ -3,7 +3,10 @@ const User=require('../models/userSchema.js')
 const express=require('express')
 const Notification=require('../models/notificationSchema.js')
 const fs=require('fs')
-const axios = require('axios');
+// [AI OFF] only used to ask the Python AI server for the category of a new community (see createCommunity)
+// const axios = require('axios');
+// [NEW] safeFileName cleans upload names, isPlainFileName checks a name before it is used in a path
+const {safeFileName,isId,isPlainFileName}=require('../utils/shape.js')
 const {resolve}=require('path')
 let {promisify}=require('util')
 const unlink=promisify(fs.unlink)
@@ -27,9 +30,12 @@ async function saveCommunityImage(imageFile,dir){
         imagesNames.forEach(async(imageName)=>await unlink(`${dir}/${imageName}`))
     }
         const random=await require('crypto').randomBytes(8).toString('hex')
-        const filePath=`${dir}/${random}-${imageFile.originalname}`
+        // [SECURITY] the original name could contain "../" and write outside the folder
+        // const filePath=`${dir}/${random}-${imageFile.originalname}`
+        const imageName=`${random}-${safeFileName(imageFile.originalname)}`
+        const filePath=`${dir}/${imageName}`
         await writeFile(filePath,imageFile.buffer,{recursive:true})
-        return `${random}-${imageFile.originalname}`
+        return imageName
     }
     catch(err){
         console.log(err)
@@ -111,9 +117,14 @@ class communityMiddleware{
             const imageName=req.params.imageName||req.community.coverImageName
             if(!imageName)
             return next()
-            const imagePath=resolve(__dirname,'..','uploaded-files','communities-images',req.query.communityId||req.body.communityId,imageName)
-            if(await !exists(imagePath))
-                return res.json({success:false,err:'file was found'})
+            // [SECURITY] the folder comes from the verified community, not from the query
+            // const imagePath=resolve(__dirname,'..','uploaded-files','communities-images',req.query.communityId||req.body.communityId,imageName)
+            const imagePath=resolve(__dirname,'..','uploaded-files','communities-images',req.community.id,imageName)
+            // [FIX] "await !exists(...)" is always false (it awaits the boolean of a promise), and the message said
+            // 'file was found'. Now: delete the file when it is there, go on when it is not.
+            // if(await !exists(imagePath))
+            //     return res.json({success:false,err:'file was found'})
+            if(isPlainFileName(imageName)&&fs.existsSync(imagePath))
                 await unlink(imagePath)   
                 return next()
             }   
@@ -126,12 +137,15 @@ class communityMiddleware{
         try
         {
             let {community}=req
-            const dir=resolve(__dirname,'..','uploaded-files','communities-images',req.query.communityId||req.body.communityId)
+            // [NEW] a request without a file got a crash in saveCommunityImage
+            if(!req.files||!req.files[0])
+            return res.json({success:false,err:'no image was sent'})
+            // [SECURITY] the folder comes from the verified community, not from the query
+            const dir=resolve(__dirname,'..','uploaded-files','communities-images',community.id)
              const imageName=  await saveCommunityImage(req.files[0],dir)
             community.coverImageName=imageName
             await community.save()
             req.community=community
-            console.log(req.files,req.body)
             return next()
         }   
         catch(err){
@@ -196,6 +210,9 @@ class communityMiddleware{
         try
         {    
             let {joiner,community}=req
+            // [FIX] an unknown community crashed on community.members
+            if(!community)
+                return res.json({success:false,err:'no community was found'})
             if(!joiner)
             joiner=req.user
             if(community.members.every(({memberId})=>memberId.toString()!==joiner.id))
@@ -216,9 +233,19 @@ class communityMiddleware{
             if(community.members.some(({memberId})=>memberId.toString()===joiner.id))
                 return res.json({success:false,err:'user is already a member'})
             community.members.push({memberId:joiner.id})
-            await interestsMiddleWare.updateScore(community.category,'joinCommunity',joiner)
-            await Notification.create({user:req.user.id,subject:{model:'Community',action:'memberJoin',id:community.id}})
             await community.save()    
+            // [FIX] the community is also written in user.communities of the new member
+            // (joining a public community never updated the user, so the client did not know about it)
+            const entry=joiner.communities.find(({communityId})=>communityId.toString()===community.id)
+            if(entry)
+                entry.approved=true
+            else
+                joiner.communities.push({communityId:community.id,approved:true})
+            await joiner.save()
+            await interestsMiddleWare.updateScore(community.category,'joinCommunity',joiner)
+            // [FIX] the welcome goes to the new member (it went to req.user, the admin who approved)
+            // await Notification.create({user:req.user.id,subject:{model:'Community',action:'memberJoin',id:community.id}})
+            await Notification.create({user:joiner.id,subject:{model:'Community',action:'memberJoin',id:community.id}})
             req.community=community
             return next()    
         }
@@ -245,12 +272,14 @@ class communityMiddleware{
     static async removeFromWaitList(req,res,next){
         try
         {    
-            console.log('adsa')
             let {community}=req
-            let joiner=await User.findById(req.query.joinerId||req.body.joinerId)
-            if(!joiner.id)
+            // [FIX] without a joinerId (a user withdrawing his own request) this crashed on joiner.id of null
+            // let joiner=await User.findById(req.query.joinerId||req.body.joinerId)
+            // if(!joiner.id)
+            const joinerId=req.query.joinerId||req.body.joinerId
+            let joiner=joinerId?await User.findById(joinerId):req.user
+            if(!joiner)
             return res.json({success:false,err:'have not found the joiner'})
-            console.log(joiner)
                 community.waitingList=community.waitingList.filter(({userId})=>userId.toString()!==joiner.id)
                 await community.save()
                 return next()
@@ -264,11 +293,15 @@ class communityMiddleware{
         try
         {    
           let {community,joiner}=req
+          const leftAlone=!joiner
           if(!joiner)
             joiner=req.user
             community.members=community.members.filter(({memberId})=>memberId.toString()!==joiner.id)
             await community.save()
             req.community=community
+            // [NEW] leaving by yourself lowers the interest (leaveCommunity:-14 was in the table but never used)
+            if(leftAlone)
+            await interestsMiddleWare.updateScore(community.category,'leaveCommunity',joiner)
             return next()
         }
         catch(err){
@@ -312,7 +345,10 @@ class communityMiddleware{
             community.posts=community.posts.filter(({postId})=>postId.toString()!==post.id)
             await community.save()
             req.community=community
-            await Notification.create({user:req.user.id,subject:{model:'Community',action:'removePost',id:community.id},notifier:post.publisher})
+            // [FIX] user and notifier were swapped: the admin got told that his own action happened
+            // await Notification.create({user:req.user.id,subject:{model:'Community',action:'removePost',id:community.id},notifier:post.publisher})
+            if(post.publisher.toString()!==req.user.id)
+            await Notification.create({user:post.publisher,subject:{model:'Community',action:'removePost',id:community.id},notifier:req.user.id})
 
             return next()
         }
@@ -328,7 +364,9 @@ class communityMiddleware{
             if(!community)
             return next()
             let approval=!community.postApproval
-            if(community.admins.some(id=>id.toString()===user.id||community.manager.toString()===user.id))
+            // [FIX] the manager check was inside the admins callback, so it never ran in a community without admins
+            // if(community.admins.some(id=>id.toString()===user.id||community.manager.toString()===user.id))
+            if(community.manager.toString()===user.id||community.admins.some(id=>id.toString()===user.id))
             approval=true
             community.posts.push({postId:post.id,approved:approval})
             await community.save()
@@ -352,7 +390,7 @@ class communityMiddleware{
                     return next()
                         }
         catch(err){
-            consoel.log(err)
+            console.log(err)   // [FIX] typo "consoel"
             return res.json({success:false,err:err.message})
         }
     }
@@ -395,20 +433,19 @@ class communityMiddleware{
         try
         {
             let {admins,community}=req
-            console.log('adsadasd')
-            console.log(req.admins)
-            console.log(req.body.adminsId)
             if(!admins.length)
             return next()
-            for (let i = 0; i < community.admins.length; i++)
-                    for (let j = 0; j < admins.length; j++) 
-                        if(admins[j].id===community.admins[i].toString())
-                            community.admins.splice(i,1)
-                            await Notification.create({user:community.admins[i],subject:{model:'Community',action:"adminOut",id:community.id},notifier:req.user.id})
+            // [FIX] the old loops spliced the array they were walking through and used community.admins[i]
+            // after it was removed, so it removed the wrong admins. Old code:
+            // for (let i = 0; i < community.admins.length; i++)
+            //         for (let j = 0; j < admins.length; j++)
+            //             if(admins[j].id===community.admins[i].toString())
+            //                 community.admins.splice(i,1)
+            //                 await Notification.create({user:community.admins[i],subject:{model:'Community',action:"adminOut",id:community.id},notifier:req.user.id})
+            // (the removed admins are notified in userModelSideEffectHandler.removeAdmins)
+            community.admins=community.admins.filter(adminId=>admins.every(admin=>admin.id!==adminId.toString()))
             await  community.save()
             req.community=community
-            console.log(community)
-            console.log('asd')
             return next()
                         }
         catch(err){
@@ -423,14 +460,12 @@ class communityMiddleware{
             
             if(!req.query.communityId&&!req.body.communityId)
            {
-            console.log('no community was found')
                return next()
            }
             const community=await Community.findById(req.body.communityId||req.query.communityId)
             if(!community)
             return res.json({success:false,err:'no community was found'})
             req.community=community
-            console.log('xxxxxxxxxxxx')
             return next()
             }
         catch(err){
@@ -444,14 +479,16 @@ class communityMiddleware{
             if(!req.body.communityName||!req.body.describtion)
             return res.json({success:false,err:'you did not send full information about the community'})
             const existingCommunity=await Community.findOne({communityName:req.body.communityName})
-           console.log(existingCommunity)
             if(existingCommunity!==null)
             return res.json({success:false,err:'a community by this name already exists choose another one'})  
+            // [CHANGED] the manager chooses the category (it came from the AI server)
+            // [AI OFF] let {data}=await axios.get(`http://127.0.0.1:5000/api/ai/text?text=${req.body.describtion}`)
+            const data=req.body.category
+            if(!interestsMiddleWare.CATEGORIES.includes(data))
+            return res.json({success:false,err:'choose a category for the community: '+interestsMiddleWare.CATEGORIES.join(', ')})
            let members=[req.user.id]
            members=members.concat(req.body.adminsId)
            members=members.map(member=>({memberId:member}))
-           console.log(members)
-           let {data}=await axios.get(`http://127.0.0.1:5000/api/ai/text?text=${req.body.describtion}`)
             let community=await Community.create({
                 communityName:req.body.communityName,
                 describtion:req.body.describtion,
@@ -477,10 +514,10 @@ class communityMiddleware{
             {
             let {community}=req
             let {admins}=req
-            console.log(community)
-            for (let i = 0; i < admins.length; i++) 
-                {community.admins.push(admins[i].id)                
-                }
+            // [FIX] the first loop pushed every admin without checking, so each admin was added twice
+            // for (let i = 0; i < admins.length; i++)
+            //     {community.admins.push(admins[i].id)
+            //     }
             for (let i = 0; i < admins.length; i++) 
                 if(community.admins.every(id=>id.toString()!==admins[i].id))
                 community.admins.push(admins[i].id)                

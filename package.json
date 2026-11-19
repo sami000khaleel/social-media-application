@@ -1,0 +1,17 @@
+{
+  "name": "upswing",
+  "private": true,
+  "description": "Social network with an interest-tracking feed. One service: the Express API also serves the built React app.",
+  "scripts": {
+    "setup": "npm install --prefix server && npm install --prefix client",
+    "build": "npm install --prefix server && npm install --prefix client --include=dev && npm run build --prefix client",
+    "start": "npm start --prefix server",
+    "seed": "npm run seed --prefix server",
+    "seed:reset": "npm run seed:reset --prefix server",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

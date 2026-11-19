@@ -9,12 +9,15 @@ const unlink=util.promisify(fs.unlink)
 const readFile=util.promisify(fs.readFile)
 const writeFile=util.promisify(fs.writeFile)
 const access=util.promisify(fs.access)
+// [NEW] safeFileName cleans upload names, publicProfile hides private fields of a user
+const {safeFileName,publicProfile}=require('../utils/shape.js')
 async function checkUserBlock(req,res,userId){
     try
     {
         let {user}=req
         if(user.blockedUsers.length)
-        if(user.blockedUsers.some(id=>is.toString()===userId.toString()))
+        // [FIX] typo: is.toString() -> id.toString() ("is is not defined" for anyone with a blocked user)
+        if(user.blockedUsers.some(id=>id.toString()===userId.toString()))
             return true
             return false
     }
@@ -55,9 +58,12 @@ async function saveUserImage(imageFile,dir){
         imagesNames.forEach(async(imageName)=>await unlink(`${dir}/${imageName}`))
     }
         const random=await require('crypto').randomBytes(8).toString('hex')
-        const filePath=`${dir}/${random}-${imageFile.originalname}`
+        // [SECURITY] the original name could contain "../" and write outside the upload folder
+        // const filePath=`${dir}/${random}-${imageFile.originalname}`
+        const imageName=`${random}-${safeFileName(imageFile.originalname)}`
+        const filePath=`${dir}/${imageName}`
         await writeFile(filePath,imageFile.buffer,{recursive:true})
-        return `${random}-${imageFile.originalname}`
+        return imageName
     }
     catch(err){
         console.log(err)
@@ -172,8 +178,21 @@ class userMiddleware{
         }
     }
     static async createUser(req,res,next){
-        try{ const {firstName,lastName,middleName,birthDate,city,country,age,phoneNumber,sex,street,email,password}= req.body
+        // [CHANGED] job can be sent at sign up
+        try{ const {firstName,lastName,middleName,birthDate,city,country,age,phoneNumber,sex,street,email,password,job}= req.body
+          // [NEW] checks before saving: required fields, a valid email and a password of 8+ characters
+          // why: an empty password crashed bcrypt, and a missing name gave a raw mongoose error
+          if(!firstName||!lastName||!email||!password||!age)
+          return res.status(400).json({success:false,err:'first name, last name, age, email and password are required'})
+          if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+          return res.status(400).json({success:false,err:'invalid email'})
+          if(String(password).length<8)
+          return res.status(400).json({success:false,err:'the password needs at least 8 characters'})
           const hashedPassword=await bcrypt.hash(password,10)
+          // [FIX] every interest starts its history with {score:0,date:now}
+          // why: the old keys were spelled "socre" (so no score was saved) and most topics
+          // (technology, health, travel, ...) do not exist in userSchema.interests, which only has these five
+          const start=()=>[{score:0,date:new Date()}]
         const user =await User.create({
           password:hashedPassword,  
           firstName,
@@ -189,24 +208,31 @@ class userMiddleware{
               phoneNumber,
               sex,
               email,
+              job,   // [CHANGED] saved at sign up
+              // interests:{
+              //   business:[{socre:0}]
+              //   ,scienceAndEnviroment:[{socre:0}]
+              //   ,technology:[{socre:0}]
+              //   ,health:[{socre:0}]
+              //   ,travel:[{socre:0}],
+              //   entertainmentAndArts:[{socre:0}]
+              //   ,sport:[{socre:0}],
+              //   basketBall:[{socre:0}],
+              //   football:[{socre:0}],
+              //   tennis:[{socre:0}],
+              //   fashion:[{socre:0}],
+              //   news:[{socre:0}],
+              //   food:[{socre:0}],
+              //   music:[{socre:0}],
+              //   car:[{socre:0}],
+              //   politics:[{socre:0}],
+              // }
               interests:{
-                business:[{socre:0}]
-                ,scienceAndEnviroment:[{socre:0}]
-                ,technology:[{socre:0}]
-                ,health:[{socre:0}]
-                ,travel:[{socre:0}],
-                entertainmentAndArts:[{socre:0}]
-                ,sport:[{socre:0}],
-                basketBall:[{socre:0}],
-                football:[{socre:0}],
-                tennis:[{socre:0}],
-                fashion:[{socre:0}],
-                news:[{socre:0}],
-                food:[{socre:0}],
-                music:[{socre:0}],
-                car:[{socre:0}],
-                politics:[{socre:0}],
-            
+                business:start(),
+                tech:start(),
+                entertainment:start(),
+                sport:start(),
+                politics:start()
               }
           })
           req.user=user
@@ -224,7 +250,8 @@ class userMiddleware{
             console.log('got the admins')
             let admins=[]
             let {community}=req
-            const {adminsId}=req.body
+            // [CHANGED] also read from the query (DELETE requests usually send no body)
+            const adminsId=req.body.adminsId||req.query.adminsId
             if(adminsId)
             if(adminsId.length)
             for (let i = 0; i < adminsId.length; i++) {
@@ -249,16 +276,20 @@ class userMiddleware{
             if(!admins.length)
             return res.json({success:false,err:'no admins were sent'})
             const {community}=req
-            console.log(community,'adsdsadsadads')
-            if(!community.admins.length)
-            return next()
+            // [CHANGED] removed "if(!community.admins.length) return next()" and the "continue" for users without
+            // adminedCommunities: they skipped the checks below for the first admin of a community
             for (let i = 0; i < admins.length; i++) {
-                if(!admins[i].adminedCommunities.length)
-                    continue
+            // [NEW] the manager can not be an admin too, and an admin must already be a member
+            if(community.manager.toString()===admins[i].id)
+                return res.json({success:false,err:'the manager can not be an admin too'})
+            if(community.members.every(({memberId})=>memberId.toString()!==admins[i].id))
+                return res.json({success:false,err:'an admin must be a member first'})
             if(community.admins.some(adminId=>adminId.toString()===admins[i].id)||admins[i].adminedCommunities.some(commId=>commId.toString()===community.id))
                 return res.json({success:false,err:'found an existing admin try again with the same list'})
-            return next()
                       }
+            // [FIX] next() used to sit inside the loop: only the first admin was checked,
+            // and a request with no match ended without any answer
+            return next()
                                   }
         catch(err){
             console.log(err)
@@ -304,7 +335,9 @@ class userMiddleware{
            await user.save()
            addedUser.followers=addedUser.followers.filter(friendId=>friendId.toString()!==user.id)
            await addedUser.save()
-           return res.json({success:true,followes:addedUser})
+           // [CHANGED] following:false tells the client the user was unfollowed
+           // [SECURITY] publicProfile instead of the whole user document (email, phone, password hash)
+           return res.json({success:true,following:false,followes:publicProfile(addedUser)})
             
         }
         catch(err){
@@ -315,8 +348,10 @@ class userMiddleware{
     static async getUser(req,res,next){
         try
         {
-            console.log(req.body)
             let user=await User.findById(req.query.userId||req.body.userId)
+            // [FIX] an unknown id crashed in checkIfFollowes (addedUser.id of null)
+            if(!user)
+            return res.json({success:false,err:'no user was found'})
             req.addedUser=user
             return next()
         }
@@ -333,10 +368,15 @@ class userMiddleware{
         static async updateCoverImage(req,res,next){
             try
         {
+            // [NEW] checks that a file was sent and that it is a picture
+            if(!req.files||!req.files[0])
+            return res.json({success:false,err:'no image was sent'})
             const coverImage=req.files[0]
-            console.log(coverImage)
+            if(!String(coverImage.mimetype).startsWith('image/'))
+            return res.json({success:false,err:'the file is not an image'})
             let {style}=req.body
-            style=JSON.parse(style)
+            // [FIX] JSON.parse(undefined) crashed when no style was sent
+            style=style?JSON.parse(style):{}
             const profileDir=`./uploaded-files/users-images/${req.user.id}/user-cover-image`
             const imageName= await saveUserImage(coverImage,profileDir)
             const image={imageName,style}
@@ -352,10 +392,15 @@ class userMiddleware{
     static async updateProfileImage(req,res,next){
         try
         {
+            // [NEW] checks that a file was sent and that it is a picture
+            if(!req.files||!req.files[0])
+            return res.json({success:false,err:'no image was sent'})
             const profileImage=req.files[0]
-            console.log(req.files)
+            if(!String(profileImage.mimetype).startsWith('image/'))
+            return res.json({success:false,err:'the file is not an image'})
             let {style}=req.body
-            style=JSON.parse(style)
+            // [FIX] JSON.parse(undefined) crashed when no style was sent
+            style=style?JSON.parse(style):{}
             const profileDir=`./uploaded-files/users-images/${req.user.id}/user-profile-image`          
             const imageName= await saveUserImage(profileImage,profileDir)
             const image={imageName,style}

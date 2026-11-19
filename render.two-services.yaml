@@ -1,0 +1,38 @@
+# The other way: TWO services on Render, the API (Node.js) and the front end (a static site).
+# To use it: delete render.yaml, rename this file to render.yaml, push, then "New > Blueprint".
+# Render asks for DATABASE_URL and VITE_API_URL. See "Way 2" in the README.
+services:
+  # 1) the API: Express + Socket.IO + the demo mode
+  - type: web
+    name: upswing-api
+    runtime: node
+    plan: free
+    buildCommand: npm install --prefix server
+    startCommand: npm start --prefix server
+    healthCheckPath: /api/demo
+    envVars:
+      - key: DATABASE_URL
+        sync: false            # the MongoDB Atlas connection string
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DEMO_MODE
+        value: "true"
+      - key: DEMO_RESET_HOURS
+        value: "6"
+      - key: CLIENT_URL
+        sync: false            # optional: the front end's address, e.g. https://upswing-web.onrender.com
+      - key: NODE_VERSION
+        value: "20"
+  # 2) the front end: Vite builds plain files, Render serves them from its CDN (static sites do not sleep)
+  - type: web
+    name: upswing-web
+    runtime: static
+    buildCommand: npm install --prefix client --include=dev && npm run build --prefix client
+    staticPublishPath: client/dist
+    routes:
+      - type: rewrite          # every page (/insights, /post/123 ...) is the same React app
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        sync: false            # the API's address, e.g. https://upswing-api.onrender.com

@@ -1,5 +1,6 @@
 const Comment=require('../models/commentSchema.js')
-const axios = require('axios');
+// [AI OFF] only used to ask the Python AI server if a comment is bad (see createComment)
+// const axios = require('axios');
 const Notification=require('../models/notificationSchema.js')
 const User=require('../models/userSchema.js')
 const interestsMiddleWare = require('./interestsMiddleware.js')
@@ -71,7 +72,10 @@ class commentsMiddleware{
             try
             {
             let comments=req.commentsList
-            comments.forEach(async(comment)=>await comment.delete())
+            // [FIX] forEach(async ...) did not wait, so the answer came before the comments were deleted
+            // comments.forEach(async(comment)=>await comment.delete())
+            for (const comment of comments)
+                await comment.deleteOne()
             return next()    
             }
             catch(err){
@@ -85,7 +89,8 @@ class commentsMiddleware{
             comment.content=req.body.content
            await comment.save()
            req.comment=comment
-            const notification=await Notification.create({user:req.user.id,subject:{model:'Comment',action:'updateComment',id:comment.id}})
+            // [CHANGED] no notification to yourself for editing your own comment
+            // const notification=await Notification.create({user:req.user.id,subject:{model:'Comment',action:'updateComment',id:comment.id}})
             return next()
 
         }
@@ -117,12 +122,13 @@ static async updateCommentDislikes(req,res,next){
     comment.likedBy= comment.likedBy.filter(id=>id.toString()!==req.user.id)
     // check if user liked
     if(comment.dislikedBy.some(userId=>userId.toString()===user.id))
-    {   // remove like
+    {   // remove dislike
         await interestsMiddleWare.updateScore(post.category,comment.positivity?'undislikePositiveComment':'undislikeNegativeComment',user)
         req.dislike=false
         comment.dislikedBy=comment.dislikedBy.filter(userId=>userId.toString()!==user.id)
     await comment.save()
-        await Notification.create({user:comment.user,subject:{model:'Comment',action:'dislikeComment',id:comment.id},notifier:req.user.id})
+        // [CHANGED] no "dislikeComment" notification when a dislike is taken back
+        // await Notification.create({user:comment.user,subject:{model:'Comment',action:'dislikeComment',id:comment.id},notifier:req.user.id})
         return next()
 }
     // otherwise like
@@ -149,11 +155,13 @@ static async updateCommentLikes(req,res,next){
     // check if user disliked
     if(comment.likedBy.some(userId=>userId.toString()===user.id))
     {   // remove like
-        await interestsMiddleWare.updateScore(post.category,comment.positivity?'undislikePositiveComment':'undislikeNegativeComment',user)
+        // [FIX] uses the unlike score (it used the undislike one)
+        await interestsMiddleWare.updateScore(post.category,comment.positivity?'unlikePositiveComment':'unlikeNegativeComment',user)
         req.like=false
         comment.likedBy=comment.likedBy.filter(userId=>userId.toString()!==user.id)
     await comment.save()
-        await Notification.create({user:comment.user,subject:{model:'Comment',action:'likeComment',id:comment.id},notifier:req.user.id})
+        // [FIX] the "liked your comment" notification was sent here, when the like was REMOVED (moved below)
+        // await Notification.create({user:comment.user,subject:{model:'Comment',action:'likeComment',id:comment.id},notifier:req.user.id})
         return next()
 }
     // otherwise like
@@ -162,6 +170,10 @@ static async updateCommentLikes(req,res,next){
     req.like=true
     comment.likedBy.push(user.id)
     await comment.save()
+    // [FIX] the notification is sent when the comment is liked, not to yourself,
+    // and its id is the post (so the client can open the post the comment is on)
+    if(comment.user.toString()!==user.id)
+        await Notification.create({user:comment.user,subject:{model:'Comment',action:'likeComment',id:post.id},notifier:req.user.id})
     req.comment=comment
     return next()
     }
@@ -194,7 +206,8 @@ static async checkForOgComment(req,res,next){
         req.ogComment=ogComment
         return next()
     }
-    catch{
+    // [FIX] was catch{ ... err.message }: err was not defined, so an error crashed the server
+    catch(err){
         return res.json({success:false,err:err.message})
     }
 }
@@ -202,19 +215,32 @@ static async checkForOgComment(req,res,next){
         try
         {
             let {post,ogComment}=req 
-            const {data}=await axios.get(`http://127.0.0.1:5000/api/ai/comment?comment=${req.body.content}`)           
+            // [NEW] an empty comment is refused
+            if(!req.body.content||!String(req.body.content).trim())
+                return res.json({success:false,err:'the comment is empty'})
+            // [AI OFF] the AI server rated the comment (bad / not bad). Kept, commented out:
+            // const {data}=await axios.get(`http://127.0.0.1:5000/api/ai/comment?comment=${req.body.content}`)
+            // [CHANGED] without the AI server a comment is not bad and counts as positive
+            // (badComment:!data  ->  badComment:false, positivity:true)
             let comment =await Comment.create({
                 user:req.user.id,
                 postId:req.body.postId,
                 content:req.body.content,
                 repliedTo:req.body.repliedCommentId||null,
-                badComment:!data
+                badComment:false,
+                positivity:true
             })
             
             await interestsMiddleWare.updateScore(post.category,!comment.badComment?'positiveComment':'negativeComment',req.user)
-            const notification=await Notification.create({user:post.publisher,subject:{model:'Post',action:'createComment',id:comment.id},notifier:req.user.id})
-            if(comment.repliedTo)
-                await Notification.create({user:ogComment.user,subject:{model:'Comment',action:'replyComment',id:comment.id},notifier:req.user.id})
+            // [CHANGED] no notification for commenting on your own post or replying to yourself,
+            // and the id is the post (the client opens the post; a comment has no page of its own)
+            // const notification=await Notification.create({user:post.publisher,subject:{model:'Post',action:'createComment',id:comment.id},notifier:req.user.id})
+            // if(comment.repliedTo)
+            //     await Notification.create({user:ogComment.user,subject:{model:'Comment',action:'replyComment',id:comment.id},notifier:req.user.id})
+            if(post.publisher.toString()!==req.user.id)
+                await Notification.create({user:post.publisher,subject:{model:'Post',action:'createComment',id:post.id},notifier:req.user.id})
+            if(comment.repliedTo&&ogComment.user.toString()!==req.user.id)
+                await Notification.create({user:ogComment.user,subject:{model:'Comment',action:'replyComment',id:post.id},notifier:req.user.id})
                 req.comment=comment
             return next()
         }

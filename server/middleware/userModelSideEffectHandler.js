@@ -3,7 +3,7 @@ const Comment=require('../models/commentSchema.js')
 const fs=require('fs')
 const Notification=require('../models/notificationSchema.js')
 const util=require('util')
-const { json } = require('body-parser')
+// const { json } = require('body-parser')   // [CHANGED] unused import
 const interestsMiddleWare = require('./interestsMiddleware.js')
 const mkdir=util.promisify(fs.mkdir)
 const readFile=util.promisify(fs.readFile)
@@ -60,6 +60,9 @@ class userModelSideEffectHandler{
             for (let i = 0; i < community.members.length; i++)
             {
                 let member=await User.findById(community.members[i].memberId)
+                // [FIX] a deleted member crashed the community delete
+                if(!member)
+                continue
                 member.communities=member.communities.filter(({communityId})=>communityId.toString()!==community.id)
                 await member.save()
             }
@@ -131,11 +134,13 @@ class userModelSideEffectHandler{
             return res.json({success:false,err:'you already on the list'})
             user.communities.push({communityId:community.id})
             await user.save()
-            await interestsMiddleWare.updateScore(community.category,'joinCommunity',user)
+            // [CHANGED] the joinCommunity score (+22) is given when the request is approved (addMember), so it is not
+            // counted twice. Asking alone no longer counts.
+            // await interestsMiddleWare.updateScore(community.category,'joinCommunity',user)
             await Notification.create({user:community.manager,subject:{model:'Community',action:'membershipRequest',id:community.id},notifier:req.user.id})
-            community.admins.forEach(async(admin)=>{
+            // [FIX] for loop instead of forEach(async ...), so the answer waits for the notifications
+            for (const admin of community.admins)
                 await Notification.create({user:admin,subject:{model:'Community',action:'membershipRequest',id:community.id},notifier:req.user.id})
-            })
             return next()
             
         }
@@ -163,7 +168,8 @@ class userModelSideEffectHandler{
             user.adminedCommunities=user.adminedCommunities.filter(commId=>commId.toString()!==community.id)
             await user.save()
             req.user=user
-            await Notification.create({user:req.user.id,subject:{model:'Community',action:'adminOut',id:communty.id}})
+            // [FIX] typo communty.id ("communty is not defined"), so an admin could never step down
+            await Notification.create({user:req.user.id,subject:{model:'Community',action:'adminOut',id:community.id}})
             return next()
         }
         catch(err){
@@ -196,10 +202,13 @@ class userModelSideEffectHandler{
             let {community}=req
             let {admins}= req
             let{user}=req
-            admins.forEach(async(admin)=>{admin.adminedCommunities.push(community.id)
+            // [FIX] for loop instead of forEach(async ...), and the community is only added once
+            for (const admin of admins) {
+            if(admin.adminedCommunities.every(id=>id.toString()!==community.id))
+            admin.adminedCommunities.push(community.id)
             await admin.save()
             await Notification.create({user:admin.id,subject:{model:'Community',action:'addedAdmin',id:community.id},notifier:req.user.id})
-            })
+            }
             req.admins=admins
             req.community=community
             console.log('dsada')
@@ -231,7 +240,8 @@ class userModelSideEffectHandler{
         {
             console.log(req.community)
             let user=await User.findById(req.user.id)
-            user.managedCommunities= user.managedCommunities.filter((async(communityId)=>communityId.toString()!==req.community.id))
+            // [FIX] the filter callback was async: it returned a promise (always truthy), so nothing was removed
+            user.managedCommunities= user.managedCommunities.filter(communityId=>communityId.toString()!==req.community.id)
             await user.save()
             req.user=user
             return next()
@@ -244,7 +254,8 @@ class userModelSideEffectHandler{
     static async removeAdminedCommunity(req,res,next){
         try{  
             let user=await User.findById(req.user.id)
-            user.adminedCommunities= user.adminedCommunities.filter(async(communityId=>communityId.toString()!==req.community.id))
+            // [FIX] the filter callback was async, so nothing was removed (same as removeManagedCommunity)
+            user.adminedCommunities= user.adminedCommunities.filter(communityId=>communityId.toString()!==req.community.id)
             await user.save()
             return next()
 
@@ -298,7 +309,9 @@ class userModelSideEffectHandler{
             for (let i = 0; i < postsList.length; i++) 
                 for (let j = 0; j < postsList[i].likes.length; j++) {
                     let user=await User.findById(postsList[i].likes[j])
-                    console.log(user)
+                    // [FIX] a deleted liker crashed the post delete
+                    if(!user)
+                    continue
                         for (let k = 0; k < user.postsLiked.length; k++) 
                             if(user.postsLiked[k].toString()===postsList[i].id)
                                 user.postsLiked.splice(k,1)
@@ -405,14 +418,16 @@ class userModelSideEffectHandler{
         {
             
            let {user}=req
-            console.log(req.like)
             if(req.like)
             user.postsLiked.push(req.post.id)
             if(!req.like)
           user.postsLiked=user.postsLiked.filter(postId=>postId.toString()!==req.post.id.toString())
         
         await user.save()
-        const notification=await Notification.create({user:req.post.publisher,subject:{model:'Post',action:'likePost',id:req.post.id},notifier:req.user.id})
+        // [FIX] only a new like notifies the publisher (unliking sent "liked your post" too), and not for your own post
+        // const notification=await Notification.create({user:req.post.publisher,subject:{model:'Post',action:'likePost',id:req.post.id},notifier:req.user.id})
+        if(req.like&&req.post.publisher.toString()!==req.user.id)
+        await Notification.create({user:req.post.publisher,subject:{model:'Post',action:'likePost',id:req.post.id},notifier:req.user.id})
         
             return next()
         }

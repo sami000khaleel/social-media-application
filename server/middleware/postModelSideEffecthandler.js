@@ -29,7 +29,8 @@ class postModelSideEffectHandler{
         try{
             const {postsList}=req
             for (let i = 0; i < postsList.length; i++) 
-                await rmdir(`./uploaded-files/posts-files/${postsList[i].id}`,{recursive:true})
+                // [FIX] force:true, so a post without a files folder can still be deleted (rm threw ENOENT)
+                await rmdir(`./uploaded-files/posts-files/${postsList[i].id}`,{recursive:true,force:true})
 return next()
         }
         catch(err){
@@ -68,6 +69,9 @@ return next()
             for (let i = 0; i < postsList.length; i++) 
                 for (let j = 0; j < postsList[i].shares.length; j++) {
                     let sharePost=await Post.findById(postsList[i].shares[j].post)
+                    // [FIX] the share can already be deleted
+                    if(!sharePost)
+                    continue
                     sharePost.sharedPost.removed=true
                     await sharePost.save()
                      }                                                   
@@ -129,7 +133,9 @@ return next()
 
         }
         catch(err){
-
+            // [FIX] the catch was empty, so on an error the request never got an answer
+            console.log(err)
+            return res.json({success:false,err:err.message})
         }
     }
     static async addPosterIdToOriginalPostShares(req,res,next){
@@ -140,7 +146,6 @@ return next()
             let originalPost=await Post.findById(req.post.sharedPost.post)
             originalPost.shares.push({user:req.userId,post:req.post.id})
             await originalPost.save()
-            console.log(originalPost)
             req.ogPost=originalPost
            return next()
         }

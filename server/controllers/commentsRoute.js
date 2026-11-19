@@ -11,8 +11,9 @@ class commentController{
             let {comment}=req
             if(req.method==='DELETE')
 {
-    console.log('asd')
     let post=await Post.findById(comment.postId)
+    // [FIX] the post can already be gone (deleted with its comments); without this check post.category crashed
+    if(post)
   await  interestsMiddleWare.updateScore(post.category,comment.positivity?'deletePositiveComment':'deleteNegativeComment',req.user)
 }
     return res.json({success:true,comment:comment})

@@ -12,8 +12,14 @@ const writeFile=util.promisify(fs.writeFile)
 const mkdir=util.promisify(fs.mkdir)
 const postMiddleware=require('../middleware/postModelSideEffecthandler.js');
 const commentsMiddleware = require('../middleware/commentMiddleware.js');
-const { ClickAwayListener } = require('@mui/material');
+// [FIX] a React UI library imported in the server: it crashed the start unless @mui was installed, and was unused
+// const { ClickAwayListener } = require('@mui/material');
+// [NEW] POST_POPULATE: what every post sent to the client carries (publisher, shared post, community name)
+const {POST_POPULATE,USER_CARD,isId,isPlainFileName}=require('../utils/shape.js')
 const interestsMiddleWare = require('../middleware/interestsMiddleware.js');
+// [NEW] each page of the feed is saved with its calculation, and announced over Socket.IO
+const FeedLog=require('../models/feedLogSchema.js')
+const realtime=require('../realtime.js')
 async function  saveFiles(files,postId){
     let filesNames=[]
     let dir=`./uploaded-files/posts-files/${postId}`
@@ -27,37 +33,113 @@ async function  saveFiles(files,postId){
     return filesNames
 }
 class postController{
+    // [CHANGED] sendPosts was rewritten. The idea is the same (each interest gets its share of the page,
+    // found by postCategorySeq), these were the problems in the old version:
+    //  - Math.round of every share: the shares did not add up to the page size (10 x 0.15 rounds to 2 + 2 + ...)
+    //  - posts.push(addPosts) put an ARRAY inside the list of posts
+    //  - .limit(posts.length-limit) was a negative number
+    //  - an interest that was not in the query was skipped completely
+    //  - the same post could come twice (filler posts were not excluded)
+    //  - posts were sent without their publisher, so the client could not show a name
+    // How it works now:
+    // calcInterests has put the share of every interest in req.derivatives.
+    // The client sends, for every interest, the lowest postCategorySeq it already has
+    // (?tech=14&sport=9 ..., nothing or 0 for a fresh feed) and the page size in the limit header.
+    // Each interest gives its share of the page, newest posts first (lower numbers on the next page).
+    //
+    // The original version, kept for reference:
+    // static async sendPosts(req,res){
+    //     try
+    //     {
+    //         let addPosts=[]
+    //         let posts=[]
+    //         let post={}
+    //         let seq=0
+    //         let {derivatives,query,user}=req
+    //         const seqs=Object.keys(query)
+    //         let limit=req.headers['limit']
+    //         for (let j = 0; j < derivatives.length; j++) {
+    //             console.log(derivatives)
+    //         const postsNumber=Math.round(limit*derivatives[j].probability)
+    //             for (let i = 1; i <=postsNumber; i++){
+    //                 if(!query[derivatives[j].interest]){
+    //                     continue
+    //                 }
+    //                 seq= Number(query[derivatives[j].interest])+i
+    //                 post=await Post.findOne({postCategorySeq:seq,category:derivatives[j].interest}).limit(postsNumber)
+    //                 if(post)
+    //                 posts.push(post)
+    //
+    //             }
+    //         }
+    //         if(posts.length<limit){
+    //
+    //              addPosts=await Post.find().limit(posts.length-limit)
+    //             posts.push(addPosts)
+    //
+    //         }
+    //         return res.json({success:true,posts,results:derivatives,randomPostsNumber:addPosts.length||0})
+    //     }
+    //     catch(err){
+    //         console.log(err)
+    //         return res.json({success:false,err:err.message})
+    //     }
+    // }
     static async sendPosts(req,res){
         try
         {
+            let posts=[]
             let addPosts=[]
-            let posts=[] 
-            let post={}
-            let seq=0
-            let {derivatives,query,user}=req
-            const seqs=Object.keys(query)
-            let limit=req.headers['limit']
-            for (let j = 0; j < derivatives.length; j++) {
-                console.log(derivatives)
-            const postsNumber=Math.round(limit*derivatives[j].probability)
-                for (let i = 1; i <=postsNumber; i++){
-                    if(!query[derivatives[j].interest]){
-                        continue
-                    }
-                    seq= Number(query[derivatives[j].interest])+i
-                    post=await Post.findOne({postCategorySeq:seq,category:derivatives[j].interest}).limit(postsNumber)
-                    if(post)
-                    posts.push(post)
-                    
-                }
-            }
-            if(posts.length<limit){
+            let {derivatives,query}=req
+            // [CHANGED] 30 posts a page by default (was 10), at most 50
+            const limit=Math.min(Math.max(parseInt(req.headers['limit'])||interestsMiddleWare.PAGE_SIZE,1),50)
+            // [NEW] turn the shares into whole numbers of posts that add up to the page size
+            // (interestsMiddleWare.allocate: floor every share, then give the posts that are left
+            //  to the interests with the biggest remainders), then make room for the random surprise posts
+            const surprises=interestsMiddleWare.planPage(req.mix,limit)
+            interestsMiddleWare.pickSurprises(derivatives,surprises)
+            // [NEW] why each post is on the page: 'week', 'session', 'surprise' or (below) 'filler'
+            const reasons=new Map()
 
-                 addPosts=await Post.find().limit(posts.length-limit)
-                posts.push(addPosts)
-                
+            // [NEW] where the next post of an interest comes from: below the lowest number the client already has
+            const below=seq=>seq>0?{$lt:seq}:{$gte:1}
+            const cursors={}
+            for (let j = 0; j < derivatives.length; j++) {
+                const interest=derivatives[j].interest
+                cursors[interest]=Number(query[interest])||0
+                // [CHANGED] a topic gets its posts from the week half, from the session half, or (only topics the
+                // page gave nothing) its surprises
+                const fromWeek=req.mix.week.derivatives[j].postsNumber
+                const fromSession=req.mix.session.derivatives[j].postsNumber
+                const wanted=fromWeek+fromSession+derivatives[j].exploreNumber
+                if(!wanted)
+                    continue
+                const found=await Post.find({category:interest,postCategorySeq:below(cursors[interest])})
+                    .sort({postCategorySeq:-1}).limit(wanted).populate(POST_POPULATE)
+                const sessionReason=req.mix.session.basis==='session'?'session':'week'
+                found.forEach((post,k)=>reasons.set(post.id,k<fromWeek?'week':k<fromWeek+fromSession?sessionReason:'surprise'))
+                if(found.length)
+                    cursors[interest]=found[found.length-1].postCategorySeq
+                posts=posts.concat(found)
             }
-            return res.json({success:true,posts,results:derivatives,randomPostsNumber:addPosts.length||0})
+            // an interest ran out of posts: fill the page with the newest posts that are left
+            // [FIX] only posts the client does not have yet (below every cursor), populated, and flat
+            if(posts.length<limit){
+                const rest=derivatives.map(obj=>({category:obj.interest,postCategorySeq:below(cursors[obj.interest])}))
+                addPosts=await Post.find({$or:rest}).sort({createdAt:-1}).limit(limit-posts.length).populate(POST_POPULATE)
+                posts=posts.concat(addPosts)
+            }
+            // [CHANGED] newest first, and [NEW] basis says which time window decided the mix (see calcInterests)
+            posts.sort((a,b)=>b.createdAt-a.createdAt)
+            // [NEW] every page that is sent is written down with its calculation (see models/feedLogSchema.js)
+            // and pushed to the user's open "How my feed works" page
+            const fillers=new Set(addPosts.map(post=>post.id))
+            const log=await FeedLog.create({
+                user:req.user.id,basis:req.basis,limit,results:derivatives,halves:interestsMiddleWare.halvesOf(req.mix),
+                posts:posts.map(post=>({post:post.id,category:post.category,reason:fillers.has(post.id)?'filler':reasons.get(post.id)}))
+            })
+            realtime.toUser(req.user.id,'feed',{_id:log.id})
+            return res.json({success:true,posts,results:derivatives,halves:interestsMiddleWare.halvesOf(req.mix),basis:req.basis,surprises,randomPostsNumber:addPosts.length})
         }
         catch(err){
             console.log(err)
@@ -67,7 +149,10 @@ class postController{
 static async sendPost(req,res){
     try
     {
-        return res.json({success:true,post:req.post})
+        // [CHANGED] the client gets the post with its publisher, shared post and community name,
+        // plus like / dislike (true when the request added the reaction, false when it removed it)
+        await req.post.populate(POST_POPULATE)
+        return res.json({success:true,post:req.post,like:req.like,dislike:req.dislike})
     }
     catch(err){
         return res.json({success:false,err:err.message})
@@ -76,13 +161,17 @@ static async sendPost(req,res){
 static async sendUserPosts(req,res){
     try
     {
-        console.log('a')
         const user=await User.findById(req.params.userId)
         if(!user)
         return res.json({success:false,err:'no user was found'})
-        let {posts}=await user.populate('posts')
+        // [NEW] a demo visitor's private copy shows the posts of the person it was copied from
+        const publisherId=user.demoCloneOf?user.demoCloneOf.toString():user.id
+        // [FIX] the old version sent a list of unfinished promises (posts.map(async ...)), which became {} in JSON.
+        // It also missed posts that were not in user.posts. Now: one query, newest first, publisher populated.
+        // let {posts}=await user.populate('posts')
+        // posts=posts.map(async(post)=>await post.populate('publisher'))
+        let posts=await Post.find({publisher:publisherId}).sort({createdAt:-1}).populate(POST_POPULATE)
         posts=posts.filter(post=>!post.community.communityId)
-        posts=posts.map(async(post)=>await post.populate('publisher'))
         
         return res.json({success:true,posts})
     }
@@ -109,8 +198,14 @@ static async sendUserPosts(req,res){
         try
         {
             let post=await Post.findById(req.query.postId)
-            post =await post.populate('likes')
-            post=await post.populate('dislikes')
+            // [FIX] an unknown id crashed on post.populate
+            if(!post)
+            return res.json({success:false,err:'post was not found'})
+            // [SECURITY] only name and picture of the people who reacted (it sent whole user documents)
+            // post =await post.populate('likes')
+            // post=await post.populate('dislikes')
+            post =await post.populate({path:'likes',select:USER_CARD})
+            post=await post.populate({path:'dislikes',select:USER_CARD})
            let likers=post.likes.map(like=>like)
            let dislikers=post.dislikes.map(dislike=>dislike)
             return res.json({success:true,likers,dislikers})
@@ -121,6 +216,10 @@ static async sendUserPosts(req,res){
     }
     static async getFile(req,res){
         try{
+            // [SECURITY] path traversal: fileName "../../.env" could read any file of the server.
+            // Only a post id and a plain file name are accepted now.
+            if(!isId(req.query.postId)||!isPlainFileName(req.params.fileName))
+            return res.status(400).json({success:false,err:'invalid file'})
             const filePath=path.join(__dirname,'..','uploaded-files','posts-files',req.query.postId,req.params.fileName)
             return res.sendFile(filePath)
         }
@@ -279,24 +378,31 @@ static async commentReaction(req,res){
     static async getPostComments(req,res){
         try
         {
-            console.log('aa')
-            const post=await Post.findById(req.postId)
-            if(!post.id)
+            // [FIX] the post id comes from the query (req.postId never existed, so this route always failed)
+            // const post=await Post.findById(req.postId)
+            // if(!post.id)
+            const post=await Post.findById(req.query.postId)
+            if(!post)
                 return res.json({success:false,err:'no post was found'})
-            let comments=await Comment.find({postId:req.query.postId,repliedTo:null}) 
+            // [CHANGED] oldest comment first, like a conversation
+            let comments=await Comment.find({postId:req.query.postId,repliedTo:null}).sort({createdAt:1})
                async function getReplies(comments){
                 if(!comments.length)
                 return 0
                 for (let i = 0; i < comments.length; i++) {
                      await comments[i]
                    .populate('repliedBy')
-                   await comments[i].populate('user')
-                    comments[i].user={_id:comments[i].user.id,firstName:comments[i].user.firstName,lastName:comments[i].user.lastName,profileImage:comments[i].user.profileImage}
+                   // [CHANGED] populate only name and picture instead of replacing user by hand
+                   // await comments[i].populate('user')
+                   // comments[i].user={_id:comments[i].user.id,firstName:comments[i].user.firstName,lastName:comments[i].user.lastName,profileImage:comments[i].user.profileImage}
+                   // why: assigning a plain object to a ref field is cast back to an id by mongoose, so the name was lost
+                   await comments[i].populate({path:'user',select:USER_CARD})
                    await   getReplies(comments[i].repliedBy) 
                 }
             }
                 await getReplies(comments)
-                await interestsMiddleWare.updateScore(post.categorey,'viewComments',req.user)
+                // [FIX] typo post.categorey -> post.category (viewComments was never scored)
+                await interestsMiddleWare.updateScore(post.category,'viewComments',req.user)
                 return res.json({success:true,comments})
          }
         catch(err){
@@ -305,7 +411,8 @@ static async commentReaction(req,res){
     }
     static async getPost(req,res){
         try{
-            const post=await Post.findById(req.query.postId)
+            // [CHANGED] populated like every other post the client gets
+            const post=await Post.findById(req.query.postId).populate(POST_POPULATE)
             if(!post)
             return res.json({success:false,err:'post was not found'})
             res.json({success:true,post:post})

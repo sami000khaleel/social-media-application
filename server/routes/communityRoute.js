@@ -10,6 +10,8 @@ const postModelSideEffectHandler = require('../middleware/postModelSideEffecthan
 const { verifyCommunityAdmin, verifyCommunityRole } = require('../middleware/authentication.js')
 const postController = require('../controllers/postsRoute.js')
 const router=express.Router()
+// [NEW] all communities with the role of the signed in user in each (for the communities page)
+router.get('/list',auth.verifyToken,communityController.listCommunities)
 // get community posts
 router.get('/get-posts',auth.verifyToken,communityController.sendCommunityPosts)
 router.get('/unapproved/get-posts',auth.verifyToken,communityController.sendCommunityUnapprovedPosts)
@@ -71,7 +73,8 @@ router.delete('/members/role',auth.verifyToken,auth.verifyCommunityRole,userMidd
 // remove member by the same member used by useres with no role
 router.delete('/members',auth.verifyToken,communityMiddleware.getCommunity,communityMiddleware.verifyMember,communityMiddleware.verifyNoRole,communityMiddleware.removeMember,userModelSideEffectHandler.removeCommunity,communityController.sendCommunity)
 // admin resign
-router,delete('/admin',auth.verifyToken,communityMiddleware.getCommunity,auth.verifyCommunityAdmin,communityMiddleware.removeAdmin,userModelSideEffectHandler.removeAdmin,communityController.sendCommunity)
+// [FIX] was router,delete(...) with a comma, so this route was never registered
+router.delete('/admin',auth.verifyToken,communityMiddleware.getCommunity,auth.verifyCommunityAdmin,communityMiddleware.removeAdmin,userModelSideEffectHandler.removeAdmin,communityController.sendCommunity)
 // change commnity params
 router.patch('/manager/publicity',auth.verifyToken,auth.verifyCommunityManager,communityMiddleware.getCommunity,communityMiddleware.convertPublicity,communityController.sendCommunity)
 router.patch('/manager/post-approval',auth.verifyToken,auth.verifyCommunityManager,communityMiddleware.getCommunity,communityMiddleware.convertPostApproval,communityController.sendCommunity)
@@ -79,7 +82,9 @@ router.get('/image/:imageName',communityMiddleware.getCommunity,communityControl
 router.delete('/image/:imageName',auth.verifyToken,auth.verifyCommunityManager,communityMiddleware.getCommunity,communityMiddleware.deleteImage,communityController.sendCommunity)
 router.patch('/image',auth.verifyToken,auth.verifyCommunityManager,communityMiddleware.getCommunity,communityMiddleware.saveImage,communityController.sendCommunityCoverImageName)
 router.delete('/',auth.verifyToken,auth.verifyCommunityManager,communityMiddleware.getCommunity,
-// delete user
+// [FIX] getAdmins reads req.body.adminsId, which was never sent on delete, so the admins kept the
+// deleted community in their adminedCommunities. This step fills it with all admins of the community.
+(req,res,next)=>{req.body.adminsId=req.community.admins.map(admin=>admin.toString());return next()},
 userMiddleware.getAdmins,userModelSideEffectHandler.removeAdmins,
 userModelSideEffectHandler.removeManagedCommunity,userModelSideEffectHandler.removeMembers
 ,communityMiddleware.deleteImage,

@@ -1,0 +1,21 @@
+# One free web service on Render (https://render.com): Render reads this file when you choose
+# "New > Blueprint" and connect the GitHub repository. You only type DATABASE_URL yourself.
+services:
+  - type: web
+    name: upswing
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/demo
+    envVars:
+      - key: DATABASE_URL
+        sync: false            # paste the MongoDB Atlas connection string when Render asks
+      - key: JWT_SECRET
+        generateValue: true    # Render makes a long random secret
+      - key: DEMO_MODE
+        value: "true"
+      - key: DEMO_RESET_HOURS
+        value: "6"
+      - key: NODE_VERSION
+        value: "20"

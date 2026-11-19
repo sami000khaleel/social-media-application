@@ -28,7 +28,12 @@ class commentModelSideEffectHandler{
             return next()            
             
             let ogComment=await Comment.findById(comment.repliedTo)
-            ogComment.repliedBy.filter(async(commentId)=>
+            // [FIX] the parent comment can already be deleted
+            if(!ogComment)
+            return next()
+            // [FIX] the filtered list is assigned now. Before, the result of filter() was thrown away
+            // (and the callback was async, so it returned a promise and kept every id)
+            ogComment.repliedBy=ogComment.repliedBy.filter(commentId=>
                 commentId.toString()!==comment.id)
                 await ogComment.save()
                 return next()

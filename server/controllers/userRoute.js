@@ -6,8 +6,14 @@ const readFile=util.promisify(fs.readFile)
 const User = require('../models/userSchema.js');
 const bcrypt = require("bcrypt")
 const jwt = require('jsonwebtoken');
-const { userInfo } = require('os')
+// const { userInfo } = require('os')   // [CHANGED] unused import
+// [FIX] Notification was used in patchUser but never imported ("Notification is not defined" after every save)
+const Notification=require('../models/notificationSchema.js')
+// [NEW] helpers: publicProfile hides private fields, isId / isPlainFileName check values used in file paths
+const {publicProfile,isId,isPlainFileName}=require('../utils/shape.js')
 require('dotenv').config()
+// [SECURITY] the only fields a user may change through PATCH /api/user
+const EDITABLE_FIELDS=['firstName','lastName','middleName','age','job','email','phoneNumber']
 class user{
   constructor(){
 
@@ -15,7 +21,10 @@ class user{
   static async patchUser(req,res){
     try{
       let {user}=req
-      const objectFileds=Object.keys(req.body)
+      // [SECURITY] only whitelisted fields are copied. Before, any field could be overwritten,
+      // even password, interests or followers.
+      // const objectFileds=Object.keys(req.body)
+      const objectFileds=Object.keys(req.body).filter(field=>EDITABLE_FIELDS.includes(field))
       for (let i = 0; i < objectFileds.length; i++)
       if(req.body[objectFileds[i]]==='')
         return res.json({success:false,err:'you connot send empty fields'})
@@ -25,12 +34,27 @@ class user{
         {
           if(!emailRegex.test(req.body.email))
             return res.json({success:false,err:'invalid email'})
+          // [CHANGED] emails are saved in lower case, like at sign up
+          req.body.email=String(req.body.email).trim().toLowerCase()
           let otherUser=await User.find({email:req.body.email})
-          if(otherUser.length)
+          // [FIX] saving your own unchanged email answered "another user is using this email"
+          // if(otherUser.length)
+          if(otherUser.some(other=>other.id!==user.id))
             return res.json({success:false,err:'another user is using this email'})
         }
 
           objectFileds.forEach(field=>user[field]=req.body[field])
+          // [NEW] address and education are objects, so only their known keys are copied
+          if(req.body.address&&typeof req.body.address==='object')
+            ['country','city','street'].forEach(key=>{
+              if(typeof req.body.address[key]==='string')
+                user.address[key]=req.body.address[key]
+            })
+          if(req.body.education&&typeof req.body.education==='object')
+            ['educationLevel','educationPlace'].forEach(key=>{
+              if(typeof req.body.education[key]==='string')
+                user.education[key]=req.body.education[key]
+            })
         await user.save()
         await Notification.create({user:req.user.id,subject:{model:'User',action:'updatePorfile',id:req.user.id}})
           return res.json({success:true,user})
@@ -47,7 +71,13 @@ class user{
       return res.json({success:true,users:[]})
     let users=[]
       for (let i = 0; i < usersIds.length; i++) 
-        users.push(await User.findById(usersIds[i]))        
+        {
+          // [SECURITY] only the public part of each profile, and [FIX] ids of deleted users are skipped
+          // users.push(await User.findById(usersIds[i]))
+          const user=await User.findById(usersIds[i])
+          if(user)
+          users.push(publicProfile(user))
+        }
       
     return res.json({success:true,users})
   }
@@ -64,6 +94,8 @@ class user{
       let user=await User.findById(userId)
       for (let i = 0; i < user.followes.length; i++) {
         let follow=await User.findById(user.followes[i])
+        // [FIX] a followed account can be deleted; follow.profileImage crashed on null
+        if(follow)
         followes.push({profileImage:follow.profileImage,firstName:follow.firstName,lastName:follow.lastName,_id:follow.id})
       }
       return res.json({success:true,followes})
@@ -82,6 +114,8 @@ class user{
       let user=await User.findById(userId)
       for (let i = 0; i < user.followers.length; i++) {
         let follower=await User.findById(user.followers[i])
+        // [FIX] a follower can be deleted; follower.profileImage crashed on null
+        if(follower)
         followers.push({profileImage:follower.profileImage,firstName:follower.firstName,lastName:follower.lastName,_id:follower.id})
       }
       return res.json({success:true,followers})
@@ -95,7 +129,9 @@ class user{
   static async deleteUser(req,res,next){
     try
     {
-      let user=await User.findByIdAndDelete(req.query.userId)
+      // [SECURITY] deletes the signed in account. Before, the id came from the query, so anyone could delete any account.
+      // let user=await User.findByIdAndDelete(req.query.userId)
+      let user=await User.findByIdAndDelete(req.user.id)
       return res.json({success:true,msg:'you account has been deleted'})
     }
     catch(err)
@@ -107,7 +143,9 @@ class user{
   static async getCoverImage(req,res,next){
     try
     {
-      
+      // [SECURITY] path traversal: imageName "../../../.env" could read any file of the server
+      if(!isId(req.query.userId)||!isPlainFileName(req.params.imageName))
+      return res.status(400).json({success:false,err:'invalid image'})
       const path=join(__dirname,'..','uploaded-files','users-images',req.query.userId,`user-cover-image`,req.params.imageName)
       return res.sendFile(path)
     }
@@ -120,7 +158,9 @@ class user{
   static async getProfileImage(req,res,next){
     try
     {
-      
+      // [SECURITY] path traversal, same check as getCoverImage
+      if(!isId(req.query.userId)||!isPlainFileName(req.params.imageName))
+      return res.status(400).json({success:false,err:'invalid image'})
       const path=join(__dirname,'..','uploaded-files','users-images',req.query.userId,`user-profile-image`,req.params.imageName)
       return res.sendFile(path)
     }
@@ -134,8 +174,9 @@ class user{
   static async sendFollow(req,res,next){
     try{
       const {friend}=req
-      console.log(friend)
-      return res.json({success:true,followes:friend})
+      // [CHANGED] following:true tells the client the new state (checkIfFollowes answers following:false on unfollow)
+      // [SECURITY] publicProfile: the whole user document, email and phone included, was sent
+      return res.json({success:true,following:true,followes:publicProfile(friend)})
     }
     catch(err){
       console.log(err)
@@ -145,7 +186,8 @@ class user{
   static async generateToken(req,res,next){
    try{
     const token= await jwt.sign({id:req.user.id,},process.env.JWT_SECRET,{expiresIn:'2w'})
-    return res.status(200).json({sucess:true,token:token,userId:req.user.id})
+    // [FIX] typo "sucess" -> "success" (the client checks success)
+    return res.status(200).json({success:true,token:token,userId:req.user.id})
   }
 catch(err){
   console.log(err.message)
@@ -159,11 +201,17 @@ catch(err){
   static async getUser(req,res){
     try{
         const {userId}=req.params
+        // [CHANGED] the block routes end here without a user id and get the signed in user back
+        if(!userId&&req.user)
+        return res.json({success:true,user:req.user})
         let user=await User.findById(userId)
+        // [FIX] for an unknown id this route answered with req.user, which is undefined on this public route
+        // user=req.user
         if(!user)
-        user=req.user
-        // await user.save()
-        res.json({success:true,user:user})
+        return res.json({success:false,err:'no user was found'})
+        // [SECURITY] other people only get the public part of a profile (no email, phone, interests, hash)
+        // res.json({success:true,user:user})
+        res.json({success:true,user:publicProfile(user)})
       }
     catch(err){
       console.log(err.message)
@@ -177,13 +225,12 @@ catch(err){
     }
     catch(err){
       console.log(err)
-return      res.status(400).json({sucess:false,err:err.message})
+return      res.status(400).json({success:false,err:err.message})   // [FIX] typo "sucess"
     }
   }
   static async sendImage(req,res,next){
     try{
       const {image}=req
-      console.log('done ',image)
       return res.json({success:true,image})
     }
     catch(err){

@@ -1,0 +1,4295 @@
+================================================================================
+PROJECT BUNDLE
+================================================================================
+Root:        C:\Users\sami\Desktop\projects\social-media-app-master\server
+Package:     server
+Type:        Node server
+Generated:   2026-11-11T23:49:27.701Z
+Directories: 5 (1 not scanned)
+Files:       32 (30 read, 2 listed only)
+
+================================================================================
+1. DIRECTORY TREE
+================================================================================
+server/
+├── controllers/
+│   ├── commentsRoute.js
+│   ├── communityRoute.js
+│   ├── notificationRoute.js
+│   ├── postsRoute.js
+│   ├── rootRoute.js
+│   └── userRoute.js
+├── middleware/
+│   ├── authentication.js
+│   ├── commentMiddleware.js
+│   ├── commentModelSideEffectHandler.js
+│   ├── communityMiddleware.js
+│   ├── interestsMiddleware.js
+│   ├── notificationMiddleware.js
+│   ├── postMiddleware.js
+│   ├── postModelSideEffecthandler.js
+│   ├── userMiddleware.js
+│   └── userModelSideEffectHandler.js
+├── models/
+│   ├── commentSchema.js
+│   ├── communitySchema.js
+│   ├── notificationsActions.json
+│   ├── notificationSchema.js
+│   ├── postSchema.js
+│   └── userSchema.js
+├── node_modules/  (exists, not scanned)
+├── routes/
+│   ├── commentsRoute.js
+│   ├── communityRoute.js
+│   ├── postsRoute.js
+│   ├── rootRoute.js
+│   └── userRoute.js
+├── a.js
+├── bundler.cjs  (this script)
+├── package-lock.json  (generated/lock file - exists, content not read)
+├── package.json
+└── server.js
+
+================================================================================
+2. ALL DIRECTORIES
+================================================================================
+controllers/
+middleware/
+models/
+node_modules/   (exists, not scanned)
+routes/
+
+================================================================================
+3. ALL FILES (location, size, status)
+================================================================================
+controllers/commentsRoute.js  [702 B]  READ
+controllers/communityRoute.js  [6.9 KB]  READ
+controllers/notificationRoute.js  [954 B]  READ
+controllers/postsRoute.js  [13.3 KB]  READ
+controllers/rootRoute.js  [529 B]  READ
+controllers/userRoute.js  [5.5 KB]  READ
+middleware/authentication.js  [5.0 KB]  READ
+middleware/commentMiddleware.js  [8.1 KB]  READ
+middleware/commentModelSideEffectHandler.js  [1.5 KB]  READ
+middleware/communityMiddleware.js  [17.2 KB]  READ
+middleware/interestsMiddleware.js  [5.7 KB]  READ
+middleware/notificationMiddleware.js  [370 B]  READ
+middleware/postMiddleware.js  [11.5 KB]  READ
+middleware/postModelSideEffecthandler.js  [8.8 KB]  READ
+middleware/userMiddleware.js  [12.3 KB]  READ
+middleware/userModelSideEffectHandler.js  [15.7 KB]  READ
+models/commentSchema.js  [729 B]  READ
+models/communitySchema.js  [1.1 KB]  READ
+models/notificationsActions.json  [1013 B]  READ
+models/notificationSchema.js  [514 B]  READ
+models/postSchema.js  [1.1 KB]  READ
+models/userSchema.js  [2.5 KB]  READ
+routes/commentsRoute.js  [2.7 KB]  READ
+routes/communityRoute.js  [6.6 KB]  READ
+routes/postsRoute.js  [3.6 KB]  READ
+routes/rootRoute.js  [3.8 KB]  READ
+routes/userRoute.js  [2.8 KB]  READ
+a.js  [887 B]  READ
+bundler.cjs  [8.0 KB]  SKIPPED - this script
+package-lock.json  [416.5 KB]  LISTED - generated/lock file - exists, content not read
+package.json  [625 B]  READ
+server.js  [1.1 KB]  READ
+
+================================================================================
+4. FILE CONTENTS
+================================================================================
+
+--- FILE: controllers/commentsRoute.js ---
+const Post=require('../models/postSchema.js')
+const interestsMiddleWare = require("../middleware/interestsMiddleware")
+
+class commentController{
+    constructor(){
+
+    }
+    static async sendComment(req,res){
+        try
+        { 
+            let {comment}=req
+            if(req.method==='DELETE')
+{
+    console.log('asd')
+    let post=await Post.findById(comment.postId)
+  await  interestsMiddleWare.updateScore(post.category,comment.positivity?'deletePositiveComment':'deleteNegativeComment',req.user)
+}
+    return res.json({success:true,comment:comment})
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+}
+module.exports=commentController
+--- END: controllers/commentsRoute.js ---
+
+--- FILE: controllers/communityRoute.js ---
+const fs=require('fs')
+const {promisify}=require('util')
+const {resolve}=require('path')
+const exists=promisify(fs.exists)
+const Post=require('../models/postSchema.js')
+const unlink=promisify(fs.unlink)
+const Notification=require('../models/notificationSchema.js')
+const Community = require('../models/communitySchema.js');
+const interestsMiddleWare = require('../middleware/interestsMiddleware.js')
+class communityController{
+
+
+    constructor(){
+
+    }
+    static async sendCommunityPosts(req,res,next){
+        try
+        {
+        let community=await Community.findById(req.query.communityId)
+        const {user}=req
+        community.posts=community.posts.filter(post=>post.approved)
+        community=await community.populate('posts.postId')    
+
+
+        if(!community.public)
+            
+                if(community.members.some(({memberId})=>memberId.toString()===user.id))
+                        return res.json({success:true,posts:community.posts})                                                                                        
+                return res.json({success:false,err:'you are not a member'})
+                if(!req.user.id)
+                await interestsMiddleWare.updateScore(community.category,'viewCommunity',req.user)   
+        return res.json({success:true,posts:community.posts})    
+        }   
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async approvePost(req,res,next){
+        try
+        {
+            const post=await Post.findById(req.body.postId)
+            if(!req.body.postId)
+                return res.json({success:false,err:'no post id was sent'})
+            const community=await Community.findById(req.body.communityId)
+            const {user}=req
+            const {postId}=req.body
+            
+            if(user.id!==community.manager.toString()&&community.admins.every(admin=>admin.toString()!==user.id))
+                return res.json({success:false,err:'you are not an admin niether the manager'})
+            for (let i = 0; i < community.posts.length; i++) 
+                    if(community.posts[i].postId.toString()===postId)
+                        community.posts[i].approved=true  
+            await community.save()
+            await Notification.create({user:post.publisher,subject:{model:'Post',action:'approvePost',id:post.id},notifier:req.user.id})                          
+            return res.json({success:true,postId})
+        }   
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async sendCommunityUnapprovedPosts(req,res,next){
+        try
+        {
+        let community=await Community.findById(req.query.communityId)
+        const {user}=req
+        community.posts=community.posts.filter(post=>!post.approved)
+        community=await community.populate('posts.postId')    
+
+
+            
+                if(community.admins.some(admin=>admin.toString()===user.id))
+                    return res.json({success:success,posts:community.posts})
+                if(community.manager.toString()===user.id)                                                                                                               
+                    return res.json({success:true,posts:community.posts})
+                return res.json({success:false,err:'you are not the manager neither an admin'})
+        }   
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getImage(req,res,next){
+        try
+        {
+            console.log('asdsad')
+            const {imageName}=req.params
+            const imagePath=resolve(__dirname,'..','uploaded-files','communities-images',req.query.communityId||req.body.communityId,imageName)
+            if(await !exists(imagePath))
+                return res.json({success:false,err:'file was found'})
+            return res.sendFile(imagePath)
+            }   
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async checkCommunityExists(req,res){
+        try{
+            if(!req.query.communityName)
+            return res.json({success:false,err:'no community name was sent'})
+                const community=await Community.findOne({communityName:req.query.communityName})
+                if(!community.id)
+                    return res.json({success:true,msg:'no community was found'})
+                  return res.json({success:false,err:'this name name is taken'})  
+                }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getCommunity(req,res,next){
+        try{
+                let community=await Community.findById(req.community.id)
+                if(!community._id)
+                return res.json({success:false,err:'no community was found'})
+                if(community.admins.length)
+                    community=await community.populate('admins')
+                community=await community.populate('manager')
+                return res.json({success:true,community})
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async sendCommunity(req,res,next){
+        try{
+            let community=await Community.findById(req.query.communityId||req.body.communityId)
+            if(!community._id)
+            return res.json({success:false,err:'no community was found'})
+            if(community.admins.length)
+                community=await community.populate('admins')
+           
+                community=await community.populate('manager')
+            if(community.members.length)
+            community=await community.populate('members.memberId')
+            return res.json({success:true,community})
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async sendCommunityCoverImageName(req,res,next){
+        try{
+            let {community}=req
+            let coverImageName=community.coverImageName
+            if(!coverImageName)
+            return res.json({success:false,err:'no image name was found was found'})
+            return res.json({success:true,coverImageName})
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async deleteCommunity(req,res){
+        try
+        {
+            const community=await Community.findByIdAndDelete(req.query.communityId)
+            await interestsMiddleWare.updateScore(community.category,'deleteCommunity',req.user)
+            return res.json({success:true,community})
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+}
+module.exports=communityController
+--- END: controllers/communityRoute.js ---
+
+--- FILE: controllers/notificationRoute.js ---
+const Notification=require('../models/notificationSchema.js')
+class notificationController{
+    constructor(){
+
+    }
+    static async getNotifications(req,res){
+        try{
+            const {user}=req
+            let notifications=[]
+            if(req.headers['force']==='force')
+                {
+                    notifications=await Notification.find().sort({createdAt: 'desc'})            
+                    return res.json({success:true,notifications})
+                }
+            notifications=await Notification.find({sent:false,user:req.user.id}).sort({createdAt: 'desc'})
+            notifications.forEach(async(ele)=>{
+                ele.sent=true
+                await ele.save()
+            })
+            return res.json({success:true,notifications})
+        }
+            catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+}
+module.exports=notificationController
+--- END: controllers/notificationRoute.js ---
+
+--- FILE: controllers/postsRoute.js ---
+const Post = require('../models/postSchema.js')
+const User=require('../models/userSchema.js')
+const multer=require('multer')
+const mongoose = require('mongoose');
+const Comment=require('../models/commentSchema.js')
+const fs = require('fs')
+const path=require('path')
+const util = require('util');
+const rmdir=util.promisify(fs.rm)
+const readFile = util.promisify(fs.readFile)
+const writeFile=util.promisify(fs.writeFile)
+const mkdir=util.promisify(fs.mkdir)
+const postMiddleware=require('../middleware/postModelSideEffecthandler.js');
+const commentsMiddleware = require('../middleware/commentMiddleware.js');
+const { ClickAwayListener } = require('@mui/material');
+const interestsMiddleWare = require('../middleware/interestsMiddleware.js');
+async function  saveFiles(files,postId){
+    let filesNames=[]
+    let dir=`./uploaded-files/posts-files/${postId}`
+    await mkdir(dir,{recursive:true})
+   for(let i=0;i<files.length;i++){
+    const random=await require('crypto').randomBytes(8).toString('hex')
+    const filePath=`${dir}/${random}-${files[i].originalname}`
+    await writeFile(filePath,files[i].buffer)
+    filesNames.push(`${random}-${files[i].originalname}`)    
+}
+    return filesNames
+}
+class postController{
+    static async sendPosts(req,res){
+        try
+        {
+            let addPosts=[]
+            let posts=[] 
+            let post={}
+            let seq=0
+            let {derivatives,query,user}=req
+            const seqs=Object.keys(query)
+            let limit=req.headers['limit']
+            for (let j = 0; j < derivatives.length; j++) {
+                console.log(derivatives)
+            const postsNumber=Math.round(limit*derivatives[j].probability)
+                for (let i = 1; i <=postsNumber; i++){
+                    if(!query[derivatives[j].interest]){
+                        continue
+                    }
+                    seq= Number(query[derivatives[j].interest])+i
+                    post=await Post.findOne({postCategorySeq:seq,category:derivatives[j].interest}).limit(postsNumber)
+                    if(post)
+                    posts.push(post)
+                    
+                }
+            }
+            if(posts.length<limit){
+
+                 addPosts=await Post.find().limit(posts.length-limit)
+                posts.push(addPosts)
+                
+            }
+            return res.json({success:true,posts,results:derivatives,randomPostsNumber:addPosts.length||0})
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+static async sendPost(req,res){
+    try
+    {
+        return res.json({success:true,post:req.post})
+    }
+    catch(err){
+        return res.json({success:false,err:err.message})
+    }
+}
+static async sendUserPosts(req,res){
+    try
+    {
+        console.log('a')
+        const user=await User.findById(req.params.userId)
+        if(!user)
+        return res.json({success:false,err:'no user was found'})
+        let {posts}=await user.populate('posts')
+        posts=posts.filter(post=>!post.community.communityId)
+        posts=posts.map(async(post)=>await post.populate('publisher'))
+        
+        return res.json({success:true,posts})
+    }
+    catch(err){
+        console.log(err)
+        return res.json({success:false,err:err.message})
+    }
+}
+
+    static async getShares(req,res){
+        try{
+             let post =await Post.findById(req.query.postId)
+            await post.populate('shares.user')
+             console.log(post.shares)
+                const users=post.shares.map((share)=>share.user)
+                console.log(users)
+                return res.json({success:true,users})
+            }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getReactions(req,res){
+        try
+        {
+            let post=await Post.findById(req.query.postId)
+            post =await post.populate('likes')
+            post=await post.populate('dislikes')
+           let likers=post.likes.map(like=>like)
+           let dislikers=post.dislikes.map(dislike=>dislike)
+            return res.json({success:true,likers,dislikers})
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getFile(req,res){
+        try{
+            const filePath=path.join(__dirname,'..','uploaded-files','posts-files',req.query.postId,req.params.fileName)
+            return res.sendFile(filePath)
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async deleteComment(req,res){
+        try{
+                          const comment  =await Comment.findById(req.query.commentId)
+                            console.log(comment.user.toString())
+                            console.log(req.userId)
+                          if(comment.user.toString()!==req.userId.toString())
+                          return res.json({success:false,err:'not the commenter'})                            
+                        if(comment.repliedTo){
+                const parentComment=await Comment.findById(comment.repliedTo)
+                parentComment.repliedBy=parentComment.repliedBy.filter
+                (commentId=>commentId.toString()!==comment.id.toString())
+                await parentComment.save()
+            } 
+                const recursiveDeleteComment=async (oldList,k)=>{
+                        let newList=[] 
+                            for (let i = 0; i < oldList.length; i++) {
+                                const comment=await Comment.findByIdAndDelete(oldList[i])
+                                console.log(users,'a')
+                                console.log(comment.id,'deleted',k)
+                                    k++
+                                    newList=newList.concat(comment.repliedBy)
+                                
+                            }                                 
+                            
+                            if(!newList.length)
+                            {
+                            console.log('out')
+                                return k
+                            }
+                           return recursiveDeleteComment(newList,k)
+                        
+                }                
+                    if(comment.repliedBy.length)
+                   await recursiveDeleteComment(comment.repliedBy,1)
+                  
+                  return res.json({succes:true,comment:comment})
+            }
+        catch(err){
+              return res.json({success:false,err:err.message})
+        }
+    }
+    static async createComment(req,res){
+        try{
+            const comment=await Comment.create({
+                user:req.userId,
+            content:req.body.content,
+            postId:req.body.postId,
+            repliedTo:req.body.repliedCommentId||""
+        })
+        let post=await Post.findById(comment.postId)
+        post.comments.push(comment)
+       await post.save()
+       console.log('before')
+     await  commentsMiddleware.addCommentToUser(req.userId,comment.id)
+        if(req.body.repliedCommentId){
+            //repliedComment is the original comment
+            const repliedComment=await Comment.findById(req.body.repliedCommentId)
+            repliedComment.repliedBy.push(comment.id)
+            await repliedComment.save()
+        return res.json({success:true,comment,repliedComment})
+    }
+
+    return res.json({success:true,comment})
+} 
+
+catch(err){
+    return res.json({success:false,err:err.message})
+}
+}
+static async commentReaction(req,res){
+    try{
+        const comment=await Comment.findById(req.body.commentId)
+        if(!comment)
+        return req.json({success:false,err:'no coomment found'})
+        let user=await User.findById(req.userId)
+        const reaction=req.body.reaction
+        if(reaction==='like'){
+            if(comment.likedBy.some(userId=>userId.toString()===req.userId))
+            {
+                comment.likedBy=comment.likedBy.filter(userId=>userId.toString()!==req.userId)
+                user.commentsLiked=user.commentsLiked.filter(commentId=>commentId.toString()!==comment.id)
+                await comment.save()
+                await user.save()
+                return res.json({success:true,comment})
+            }
+            
+            comment.likedBy.push(req.userId)
+            await comment.save()
+            
+            user.commentsLiked.push(comment.id)
+            await user.save()
+            console.log(user.commentsLiked)
+            return res.json({success:true,comment})
+        }
+        return res.json({success:false,err:'no reaction was set'})
+       }
+        catch(err){
+        return res.json({success:false,err:err.message})
+    }
+}
+    static async postReaction(req,res){
+        try{
+                let post=await Post.findById(req.body.postId)
+                if(!post)
+                return res.json({success:false,err:'post was not found'})
+                let user=await User.findById(req.userId)
+                if(req.body.reaction==='like')
+                {
+                    console.log(post.likes)
+                    if(post.likes.some(like=>like.user.toString()===req.userId))
+                    {
+                        post.likes= post.likes.filter(like=>!like.user.toString()===req.userId.toString())
+                        console.log('aa')
+                        post= await   post.populate('likes.user')
+                        await post.save()
+
+                     await   postMiddleware.addPostToUserLikedPosts(req.userId,post.id,false)
+                        return res.json({success:true,post})
+                    }
+                     post.likes.push({user:req.userId})
+                     await post.save()   
+                    post= await post.populate('likes.user')
+                    
+                  await  postMiddleware.addPostToUserLikedPosts(req.userId,post.id,true)
+                    return res.json({success:true,post})
+                }
+                if(req.body.reaction==='share'){
+                    if(req.userId===post.publisher.toString())
+                    return res.json({success:false,err:"you are the poster :)"})
+                    if(post.shares.some(share=>(share.user.toString()===req.userId)))
+                        return res.json({success:false,err:'you already shared the post  '})
+                        await postMiddleware.addUserToPostShares(req.userId,post.id)
+                        await    postMiddleware.addPostToUserSharedPost(req.userId,post.id)
+                    const newSharedPost=await Post.create({
+                        publisher:req.userId,
+                        describtion:req.body.describtion,
+                        shared:{post:post._id,removed:false}
+
+                    })
+                    postMiddleware.addPostToUserPosts(req.userId,newSharedPost.id)
+                        return res.json({success:true,newSharedPost,oldPost:post})
+                }
+                return res.json({success:false,err:'no reaction was specifeid'})
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getPostComments(req,res){
+        try
+        {
+            console.log('aa')
+            const post=await Post.findById(req.postId)
+            if(!post.id)
+                return res.json({success:false,err:'no post was found'})
+            let comments=await Comment.find({postId:req.query.postId,repliedTo:null}) 
+               async function getReplies(comments){
+                if(!comments.length)
+                return 0
+                for (let i = 0; i < comments.length; i++) {
+                     await comments[i]
+                   .populate('repliedBy')
+                   await comments[i].populate('user')
+                    comments[i].user={_id:comments[i].user.id,firstName:comments[i].user.firstName,lastName:comments[i].user.lastName,profileImage:comments[i].user.profileImage}
+                   await   getReplies(comments[i].repliedBy) 
+                }
+            }
+                await getReplies(comments)
+                await interestsMiddleWare.updateScore(post.categorey,'viewComments',req.user)
+                return res.json({success:true,comments})
+         }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getPost(req,res){
+        try{
+            const post=await Post.findById(req.query.postId)
+            if(!post)
+            return res.json({success:false,err:'post was not found'})
+            res.json({success:true,post:post})
+        }
+        catch(err){
+            console.log(err.message)
+            return res.json({success:false,err:err.message})
+
+        }
+    }
+    static async createPost(req,res){
+
+        try{
+            const {describtion}=req.body
+               let style=JSON.parse(req.body.style)
+            const post= await Post.create({
+                publisher:req.userId,describtion
+            })
+            const names=await saveFiles(req.files,post.id)
+            for (let i = 0; i < names.length; i++) {
+                post.files.push({fileName:names[i],style:style[i]})
+                
+            }
+                await post.save()
+            await    postMiddleware.addPostToUserPosts(req.userId,post.id)
+            return res.json({success:true,post:post})
+        }
+        catch(err){
+            console.log(err.message)
+            return res.json({success:false,err:err.message})
+        }
+    }
+
+}
+module.exports=postController
+--- END: controllers/postsRoute.js ---
+
+--- FILE: controllers/rootRoute.js ---
+const Post = require('../models/postSchema.js');
+const User =require('../models/userSchema.js')
+class rootRouteController{
+  constructor(){
+
+  }
+  static async fetchPosts(req,res){
+    try
+    {
+      const existingPostsCount=req.body.postsCount
+      const posts=await Post.find().skip(existingPostsCount).limit(10)
+      return res.status(200).json({success:true,response:posts})
+    }
+    catch(error){
+    return  res.status(400).json({success:false,response:error.message})
+    }
+
+  }
+
+}
+
+module.exports=rootRouteController
+--- END: controllers/rootRoute.js ---
+
+--- FILE: controllers/userRoute.js ---
+const mongoose = require('mongoose')
+const fs=require('fs')
+const util=require('util')
+const {join}=require('path')
+const readFile=util.promisify(fs.readFile)
+const User = require('../models/userSchema.js');
+const bcrypt = require("bcrypt")
+const jwt = require('jsonwebtoken');
+const { userInfo } = require('os')
+require('dotenv').config()
+class user{
+  constructor(){
+
+  }
+  static async patchUser(req,res){
+    try{
+      let {user}=req
+      const objectFileds=Object.keys(req.body)
+      for (let i = 0; i < objectFileds.length; i++)
+      if(req.body[objectFileds[i]]==='')
+        return res.json({success:false,err:'you connot send empty fields'})
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      for (let i = 0; i < objectFileds.length; i++) 
+       if(objectFileds[i]==='email')   
+        {
+          if(!emailRegex.test(req.body.email))
+            return res.json({success:false,err:'invalid email'})
+          let otherUser=await User.find({email:req.body.email})
+          if(otherUser.length)
+            return res.json({success:false,err:'another user is using this email'})
+        }
+
+          objectFileds.forEach(field=>user[field]=req.body[field])
+        await user.save()
+        await Notification.create({user:req.user.id,subject:{model:'User',action:'updatePorfile',id:req.user.id}})
+          return res.json({success:true,user})
+  }
+    catch(err){
+      console.log(err)
+      return res.json({success:false,err:err.message})
+    }
+  }
+  static async getUsers(req,res){
+    try{
+      const {usersIds}=  req.query
+      if(!usersIds.length)
+      return res.json({success:true,users:[]})
+    let users=[]
+      for (let i = 0; i < usersIds.length; i++) 
+        users.push(await User.findById(usersIds[i]))        
+      
+    return res.json({success:true,users})
+  }
+    catch(err){
+      console.log(err)
+      return res.json({success:false,err:err.message})
+    }
+  }
+  static async getFollowes(req,res){
+    try{
+
+      const {userId}=req.query
+      let followes=[]
+      let user=await User.findById(userId)
+      for (let i = 0; i < user.followes.length; i++) {
+        let follow=await User.findById(user.followes[i])
+        followes.push({profileImage:follow.profileImage,firstName:follow.firstName,lastName:follow.lastName,_id:follow.id})
+      }
+      return res.json({success:true,followes})
+    }
+      catch(err){
+        console.log(err)
+        return res.json({success:false,err:err.message})
+      }
+          
+  }
+  static async getFollowers(req,res){
+    try{
+
+      const {userId}=req.query
+      let followers=[]
+      let user=await User.findById(userId)
+      for (let i = 0; i < user.followers.length; i++) {
+        let follower=await User.findById(user.followers[i])
+        followers.push({profileImage:follower.profileImage,firstName:follower.firstName,lastName:follower.lastName,_id:follower.id})
+      }
+      return res.json({success:true,followers})
+    }
+      catch(err){
+        console.log(err)
+        return res.json({success:false,err:err.message})
+      }
+          
+  }
+  static async deleteUser(req,res,next){
+    try
+    {
+      let user=await User.findByIdAndDelete(req.query.userId)
+      return res.json({success:true,msg:'you account has been deleted'})
+    }
+    catch(err)
+    {
+      console.log(err)
+      return res.json({success:false,err:err.message})
+    }
+  }
+  static async getCoverImage(req,res,next){
+    try
+    {
+      
+      const path=join(__dirname,'..','uploaded-files','users-images',req.query.userId,`user-cover-image`,req.params.imageName)
+      return res.sendFile(path)
+    }
+    catch(err)
+    {
+      console.log(err)
+      return res.json({success:false,err:err.message})
+    }
+  }
+  static async getProfileImage(req,res,next){
+    try
+    {
+      
+      const path=join(__dirname,'..','uploaded-files','users-images',req.query.userId,`user-profile-image`,req.params.imageName)
+      return res.sendFile(path)
+    }
+    catch(err)
+    {
+      console.log(err)
+      return res.json({success:false,err:err.message})
+    }
+  }
+  // log in user
+  static async sendFollow(req,res,next){
+    try{
+      const {friend}=req
+      console.log(friend)
+      return res.json({success:true,followes:friend})
+    }
+    catch(err){
+      console.log(err)
+      return res.json({success:false,err:err.message})
+    }
+  }
+  static async generateToken(req,res,next){
+   try{
+    const token= await jwt.sign({id:req.user.id,},process.env.JWT_SECRET,{expiresIn:'2w'})
+    return res.status(200).json({sucess:true,token:token,userId:req.user.id})
+  }
+catch(err){
+  console.log(err.message)
+  return res.status(400).json({success:false,err:err.message})
+}
+}
+
+
+  //send user and token
+  // req.user req.token
+  static async getUser(req,res){
+    try{
+        const {userId}=req.params
+        let user=await User.findById(userId)
+        if(!user)
+        user=req.user
+        // await user.save()
+        res.json({success:true,user:user})
+      }
+    catch(err){
+      console.log(err.message)
+      res.json({success:false,err:err.message})
+    }
+  }
+  static async sendUser(req,res){
+    try{
+      
+    return  res.status(201).json({success:true,token:req.token,user:req.user})
+    }
+    catch(err){
+      console.log(err)
+return      res.status(400).json({sucess:false,err:err.message})
+    }
+  }
+  static async sendImage(req,res,next){
+    try{
+      const {image}=req
+      console.log('done ',image)
+      return res.json({success:true,image})
+    }
+    catch(err){
+      console.log(err)
+      return res.json({success:false,err:err.message})
+    }
+  }
+}
+  
+module.exports=user
+--- END: controllers/userRoute.js ---
+
+--- FILE: middleware/authentication.js ---
+const jwt=require('jsonwebtoken')
+const User=require('../models/userSchema.js')
+const Community=require('../models/communitySchema.js')
+const bcrypt = require('bcrypt');
+class authentication{
+    constructor(){
+
+    }
+    static async verifyCommunityRole(req,res,next){
+        try
+        {
+            let community=await Community.findById(req.body.communityId||req.query.communityId)
+            if(!community)
+            return res.json({success:false,err:'no comunity was found'})
+            const {user}=req
+           req.community=community
+            if(req.headers['community-role']==='admin')
+            {
+                    if(user.adminedCommunities.every(id=>id.toString()!==community.id))
+                        return res.json({success:false,err:'you are not an admin'})
+                        return next()
+                    }
+                if(req.headers['community-role']==='manager'){
+                    if(user.managedCommunities.every(id=>id.toString()!==community.id))
+                        return res.json({success:false,err:'you are not the manager'})
+                        return next()
+                }
+                return res.json({success:false,err:'no community role was specified'})
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async verifyCommunityAdmin(req,res,next){
+        try{
+            let {user}=req
+            const community=await Community.findById(req.query.communityId||req.body.communityId)
+            req.community=community
+            if(user.adminedCommunities.every(commId=>commId.toString()!==community.id))
+            return res.json({success:false,err:'you are not the admin'})
+            for (let i = 0; i < community.admins.length; i++)
+                if(community.admins[i].toString()===user.id)
+                return next() 
+            return res.json({success:false,err:'you are not the admin'})                        
+            }
+
+        
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async verifyCommunityManager(req,res,next){
+        try{
+            console.log(req.body.communityId)
+            const community=await Community.findById(req.body.communityId||req.query.communityId)
+            if(!community)
+            return res.json({success:false,err:'no commnity was found'})
+            const {user}=req
+            if(user.managedCommunities.every(id=>id.toString()!==community.id))
+                return res.json({success:false,err:'you are not the manager'})
+                if(community.manager.toString()!==user.id)
+                return res.json({success:false,err:'you are not the manager'})
+            req.community=community
+            return next()    
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async checkEmailExists(req,res,next){
+        try{
+        const user=await User.findOne({email:req.body.email})
+        if(!user)
+        return next()
+        res.status(400).json({sucess:false,err:'this email is already in use'})
+        }
+        catch(err){
+            console.log(err.message)
+            res.status(400).json({success:false,err:err.message})
+        }
+        }
+    static async verifyToken(req,res,next){
+        try{
+            const bearer =req.headers['authorization']
+            const token=bearer.split(' ')[1]
+            if(!token)
+            res.status(400).json({success:false,err:'you are not signed in'})
+            const data=await jwt.verify(token,process.env.JWT_SECRET)
+            req.userId=data.userId
+            let user=await User.findById(data.userId)
+            req.user=user
+            console.log(req.user)
+            return next()
+        }
+        catch(err){
+            // console.log(err)
+            res.status(400).json({success:false,err:err.message})
+        }
+    }
+    static async generateToken(req,res,next){
+        try{
+            const token=jwt.sign({userId:req.user.id},process.env.JWT_SECRET)
+            req.token=token
+            return next()
+        }
+        catch(err){
+            console.log(err.message)
+            res.status(400).json({sucess:false,err:err.message})
+        }
+    }
+    // req.body.email req.body.password 
+    // returns req.user
+    static async verifyUser(req,res,next){
+        try{
+            const user=await User.findOne({email:req.query.email})
+            if(!user){
+               return res.status(404).json({success:false,err:'email does not exist'})
+            
+        }
+        const password=req.headers['password']
+    
+        const boolRes=await bcrypt.compare(password,user.password)
+            if(!boolRes)
+            return res.status(400).json({sucess:false,err:'the password is wrong'})
+            req.user=user
+            return next()
+        }
+        catch(err){
+            console.log(err.message)
+            return res.json({success:false,err:err.message})
+        }
+    }
+}
+module.exports=authentication
+--- END: middleware/authentication.js ---
+
+--- FILE: middleware/commentMiddleware.js ---
+const Comment=require('../models/commentSchema.js')
+const axios = require('axios');
+const Notification=require('../models/notificationSchema.js')
+const User=require('../models/userSchema.js')
+const interestsMiddleWare = require('./interestsMiddleware.js')
+
+class commentsMiddleware{
+    constructor(){
+
+    }
+    static async getPostsListsCommnetsList(req,res,next){
+        try
+        {
+            let {postsList}=req
+            let commentsList=[]
+            for (let i = 0; i < postsList.length; i++) 
+                for (let j = 0; j < postsList[i].comments.length; j++) 
+                {
+                    let comment=await Comment.findById(postsList[i].comments[j])
+                    commentsList.push(comment)
+
+                }
+                req.commentsList=commentsList
+                return next()
+                
+        }
+            catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getPostCommentsList(req,res,next){
+        try
+        {
+        let commentsList=[... req.post.comments]
+        req.commentsList=commentsList
+        return next()        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getCommentAndReplies(req,res,next){
+        try
+        {
+            const {comment}=req
+            let commentsList=[]
+            async function getReplies(replies){
+               let tempList=[]
+                for (let i = 0; i < replies.length; i++) {
+                    let reply=await Comment.findById(replies[i])
+                    tempList.push(reply)
+                }
+              commentsList=  commentsList.concat(tempList)
+                for (let i = 0; i < tempList.length; i++) {
+                    await  getReplies(tempList[i].repliedBy)
+                }
+                
+            }
+            if(comment.repliedBy.length)
+            await getReplies(comment.repliedBy)
+            commentsList.push(comment)
+            console.log(commentsList.length)
+            req.commentsList=commentsList
+            return next()
+        }
+
+        catch(err){
+
+            return res.json({success:false,err:err.message})
+        }}
+        static async deleteComments(req,res,next){
+            try
+            {
+            let comments=req.commentsList
+            comments.forEach(async(comment)=>await comment.delete())
+            return next()    
+            }
+            catch(err){
+                return res.json({success:false,err:err.message})
+            }
+        }
+    static async updateComment(req,res,next){
+        try
+        {
+            let {comment} =req
+            comment.content=req.body.content
+           await comment.save()
+           req.comment=comment
+            const notification=await Notification.create({user:req.user.id,subject:{model:'Comment',action:'updateComment',id:comment.id}})
+            return next()
+
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async checkAuth(req,res,next){
+        try
+        {
+        
+        let comment =await Comment.findById(req.body.commentId||req.query.commentId)
+        if(!comment)
+        return res.json({success:false,err:'no comment was found'})
+        if(comment.user.toString()!==req.user.id)
+        return res.json({success:false,err:'you are not the owner of this comment'})
+        req.comment=comment
+        return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+static async updateCommentDislikes(req,res,next){
+    try
+    {
+    let {comment,user,post}=req
+    // if user liked then remove
+    comment.likedBy= comment.likedBy.filter(id=>id.toString()!==req.user.id)
+    // check if user liked
+    if(comment.dislikedBy.some(userId=>userId.toString()===user.id))
+    {   // remove like
+        await interestsMiddleWare.updateScore(post.category,comment.positivity?'undislikePositiveComment':'undislikeNegativeComment',user)
+        req.dislike=false
+        comment.dislikedBy=comment.dislikedBy.filter(userId=>userId.toString()!==user.id)
+    await comment.save()
+        await Notification.create({user:comment.user,subject:{model:'Comment',action:'dislikeComment',id:comment.id},notifier:req.user.id})
+        return next()
+}
+    // otherwise like
+    await interestsMiddleWare.updateScore(post.category,comment.positivity?'dislikePositiveComment':'dislikeNegativeComment',user)
+
+    req.dislike=true
+    comment.dislikedBy.push(user.id)
+    await comment.save()
+    req.comment=comment
+    return next()
+    }
+    catch(err){
+        console.log(err)
+        return res.json({success:false,err:err.message})
+    }
+}
+static async updateCommentLikes(req,res,next){
+    try
+    {
+    let {comment,user,post}=req
+    // check if disliked
+    comment.dislikedBy= comment.dislikedBy.filter(id=>id.toString()!==req.user.id)
+
+    // check if user disliked
+    if(comment.likedBy.some(userId=>userId.toString()===user.id))
+    {   // remove like
+        await interestsMiddleWare.updateScore(post.category,comment.positivity?'undislikePositiveComment':'undislikeNegativeComment',user)
+        req.like=false
+        comment.likedBy=comment.likedBy.filter(userId=>userId.toString()!==user.id)
+    await comment.save()
+        await Notification.create({user:comment.user,subject:{model:'Comment',action:'likeComment',id:comment.id},notifier:req.user.id})
+        return next()
+}
+    // otherwise like
+    await interestsMiddleWare.updateScore(post.category,comment.positivity?'likePositiveComment':'likeNegativeComment',user)
+
+    req.like=true
+    comment.likedBy.push(user.id)
+    await comment.save()
+    req.comment=comment
+    return next()
+    }
+    catch(err){
+        console.log(err)
+        return res.json({success:false,err:err.message})
+    }
+}
+static async verifyComment(req,res,next){
+    try
+    {
+        let comment=await Comment.findById(req.body.commentId)
+        if(!comment)
+        return res.json({success:false,err:'no comment was found'})
+        req.comment=comment
+        return next()
+    }
+    catch(err){
+        return res.json({success:false,err:err.message})
+    }
+}
+static async checkForOgComment(req,res,next){
+    try
+    {
+        if(!req.body.repliedCommentId)
+        return next()
+        const ogComment=await Comment.findById(req.body.repliedCommentId)
+        if(!ogComment)
+        return res.json({success:false,err:'no replied comment was found'})
+        req.ogComment=ogComment
+        return next()
+    }
+    catch{
+        return res.json({success:false,err:err.message})
+    }
+}
+    static async createComment(req,res,next){
+        try
+        {
+            let {post,ogComment}=req 
+            const {data}=await axios.get(`http://127.0.0.1:5000/api/ai/comment?comment=${req.body.content}`)           
+            let comment =await Comment.create({
+                user:req.user.id,
+                postId:req.body.postId,
+                content:req.body.content,
+                repliedTo:req.body.repliedCommentId||null,
+                badComment:!data
+            })
+            
+            await interestsMiddleWare.updateScore(post.category,!comment.badComment?'positiveComment':'negativeComment',req.user)
+            const notification=await Notification.create({user:post.publisher,subject:{model:'Post',action:'createComment',id:comment.id},notifier:req.user.id})
+            if(comment.repliedTo)
+                await Notification.create({user:ogComment.user,subject:{model:'Comment',action:'replyComment',id:comment.id},notifier:req.user.id})
+                req.comment=comment
+            return next()
+        }
+        catch(err)
+        {
+            return res.json({success:false,err:err.message})
+        }
+    }
+    
+} 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// static async addCommentToUser(userId,commentId){
+  
+//     const user=await User.findById(userId)
+//     user.comments.push(commentId)
+//     await user.save()
+// console.log('after')
+
+// }
+// //remove comment from user record
+// static async removeCommentFromUserComments(userId,commentId){
+
+//     const user=await User.findById(userId)
+//     user.comments=user.comments.filter(id=>id.toString()!==commentId.toString())
+//     await user.save()
+   
+ 
+   
+// }
+module.exports=commentsMiddleware
+--- END: middleware/commentMiddleware.js ---
+
+--- FILE: middleware/commentModelSideEffectHandler.js ---
+const Comment =require('../models/commentSchema.js')
+const Notification=require('../models/postSchema.js')
+
+class commentModelSideEffectHandler{
+    constructor(){
+
+    }
+ 
+    static async deletePostComments(req,res,next){
+        try 
+        {
+            comments.forEach(async(comment)=>{
+            
+            })
+            req.commentsList=[... deletedComments]
+            console.log(req.commentsList.length,req.commentsList)
+            return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removeCommentFromOgComment(req,res,next){
+        try 
+        {
+            let {comment}=req
+            if(!comment.repliedTo)
+            return next()            
+            
+            let ogComment=await Comment.findById(comment.repliedTo)
+            ogComment.repliedBy.filter(async(commentId)=>
+                commentId.toString()!==comment.id)
+                await ogComment.save()
+                return next()
+            }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async addCommentToOgComment(req,res,next){
+        try 
+        {
+            if(!req.comment.repliedTo)
+            return next()
+            req.ogComment.repliedBy.push(req.comment.id)
+           let ogComment=req.ogComment
+            await  ogComment.save()
+            return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+}
+module.exports=commentModelSideEffectHandler
+--- END: middleware/commentModelSideEffectHandler.js ---
+
+--- FILE: middleware/communityMiddleware.js ---
+const Community=require('../models/communitySchema.js')
+const User=require('../models/userSchema.js')
+const express=require('express')
+const Notification=require('../models/notificationSchema.js')
+const fs=require('fs')
+const axios = require('axios');
+const {resolve}=require('path')
+let {promisify}=require('util')
+const unlink=promisify(fs.unlink)
+const readdir=promisify(fs.readdir)
+const mkdir=promisify(fs.mkdir)
+const exists=promisify(fs.exists)
+const writeFile=promisify(fs.writeFile)
+const auth=require('../middleware/authentication.js');
+const interestsMiddleWare = require('./interestsMiddleware.js');
+async function saveCommunityImage(imageFile,dir){
+    try{
+        let imagesNames=[]
+        if(!await exists(dir))
+        await mkdir(dir,{recursive:true})
+       
+        if(await exists(dir))
+        {
+
+        imagesNames= await readdir(dir)
+        if(imagesNames.length)
+        imagesNames.forEach(async(imageName)=>await unlink(`${dir}/${imageName}`))
+    }
+        const random=await require('crypto').randomBytes(8).toString('hex')
+        const filePath=`${dir}/${random}-${imageFile.originalname}`
+        await writeFile(filePath,imageFile.buffer,{recursive:true})
+        return `${random}-${imageFile.originalname}`
+    }
+    catch(err){
+        console.log(err)
+        
+    }
+    }
+class communityMiddleware{
+    constructor(){
+
+    }  
+    static async verifyCommunityPublic(req,res,next){
+        try
+        {
+            let {user,community}=req
+            if(!community.public)
+            return res.json({success:false,err:'community is not public'})
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async checkUserBlock(req,res,next){
+        try
+        {
+            let {user,community}=req
+            if(community.blockedUsers.some(id=>id.toString()===user.id))
+            return res,json({success:false,err:'you are blocked by this community'})
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async blockUser(req,res,next){
+        try
+        {
+            let {blockedUser,community}=req
+            if(community.blockedUsers.some(id=>id.toString()===blockedUser.id))  
+            {community.blockedUsers= community.blockedUsers.filter(id=>id.toString()!==blockedUser.id)
+                    await community.save()
+                    req.community=community
+                    console.log('dasdas')
+                    return next()
+                }
+                community.blockedUsers.push(blockedUser.id)
+                req.community=community
+                await community.save()
+                return next()
+            }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+  static async  chechPoster(req,res,next){
+        try
+        {
+            let {user,community,post}=req
+            if(community.admins.some(id=>id.string()===userid))
+            return next()
+            if(community.manager===user.id)
+            return next()
+            if(community.postApproval)
+            community.waitingList.push(post)
+            await community.save()
+            return next()
+        }
+        catch(err){
+            console.log(Err)
+            return res.josn({success:false,err:err.message})
+        }
+    }
+    static async deleteImage(req,res,next){
+        try
+        {
+            const imageName=req.params.imageName||req.community.coverImageName
+            if(!imageName)
+            return next()
+            const imagePath=resolve(__dirname,'..','uploaded-files','communities-images',req.query.communityId||req.body.communityId,imageName)
+            if(await !exists(imagePath))
+                return res.json({success:false,err:'file was found'})
+                await unlink(imagePath)   
+                return next()
+            }   
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async saveImage(req,res,next){
+        try
+        {
+            let {community}=req
+            const dir=resolve(__dirname,'..','uploaded-files','communities-images',req.query.communityId||req.body.communityId)
+             const imageName=  await saveCommunityImage(req.files[0],dir)
+            community.coverImageName=imageName
+            await community.save()
+            req.community=community
+            console.log(req.files,req.body)
+            return next()
+        }   
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getImage(req,res,next){
+        try
+        {
+            const {imageName}=req.params
+            const imagePath=resolve(__dirname,'..','uploaded-files','communities-images',req.query.communityId||req.body.communityId,imageName)
+            if(await exists(imagePath))
+                return res.json({success:false,err:'file was found'})
+            return res.sendFile(imagePath)
+            }   
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async convertPostApproval(req,res,next){
+        try{
+            let {community}=req
+            community.postApproval=!community.postApproval
+            await community.save()
+            req.community=community
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async convertPublicity(req,res,next){
+        try{
+            let {community}=req
+            community.public=!community.public
+            await community.save()
+            req.community=community
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removePostsList(req,res,next){
+        let {postsList}=req
+        for (let i = 0; i < postsList.length; i++) {
+            if(!postsList[i].community.communityId)
+                continue
+            let community= postsList[i].community.communityId
+            if(!community)
+                 return res.json({success:false,err:'no community was found'})            
+            community.posts= community.posts.filter(({postId})=>postId.toString()!==postsList[i].id)
+            await community.save()
+        }
+        return next()
+    }
+    static async verifyMember(req,res,next){
+        try
+        {    
+            let {joiner,community}=req
+            if(!joiner)
+            joiner=req.user
+            if(community.members.every(({memberId})=>memberId.toString()!==joiner.id))
+                return res.json({success:false,err:'user is not a member'})
+            return next()    
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err})
+        }
+    }
+    static async addMember(req,res,next){
+        try
+        {    
+            let {joiner,user,community}=req
+            if(!joiner)
+            joiner=user
+            if(community.members.some(({memberId})=>memberId.toString()===joiner.id))
+                return res.json({success:false,err:'user is already a member'})
+            community.members.push({memberId:joiner.id})
+            await interestsMiddleWare.updateScore(community.category,'joinCommunity',joiner)
+            await Notification.create({user:req.user.id,subject:{model:'Community',action:'memberJoin',id:community.id}})
+            await community.save()    
+            req.community=community
+            return next()    
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err})
+        }
+    }
+    static async verifyNoRole(req,res,next){
+        try
+        {    
+           let {community,user}=req
+           if(user.adminedCommunities.some(communityId=>communityId.toString()===community.id))
+           return res.json({success:false,err:'you are an admin of a community '})
+           if(user.managedCommunities.some(id=>id.toString()===community.id))
+           return res.json({success:false,err:'you are the manager of a community'})
+           return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err})
+        }
+    }
+    static async removeFromWaitList(req,res,next){
+        try
+        {    
+            console.log('adsa')
+            let {community}=req
+            let joiner=await User.findById(req.query.joinerId||req.body.joinerId)
+            if(!joiner.id)
+            return res.json({success:false,err:'have not found the joiner'})
+            console.log(joiner)
+                community.waitingList=community.waitingList.filter(({userId})=>userId.toString()!==joiner.id)
+                await community.save()
+                return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err})
+        }
+    }
+    static async removeMember(req,res,next){
+        try
+        {    
+          let {community,joiner}=req
+          if(!joiner)
+            joiner=req.user
+            community.members=community.members.filter(({memberId})=>memberId.toString()!==joiner.id)
+            await community.save()
+            req.community=community
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err})
+        }
+    }
+    static async addToWaitList(req,res,next){
+        try
+        {    
+            let {community,user}=req
+            if(community.waitingList.some(({userId})=>userId.toString()===user.id))
+            return res.json({success:false,err:'user is already waiting'})
+            community.waitingList.push({userId:user.id})
+            await community.save()
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err})
+        }
+    }
+    static async approvePost(req,res,next){
+        try
+        {
+            let {community,post}=req
+            for (let i = 0; i < community.posts.length; i++) 
+                    if(community.posts[i].post.toString()===post.id)
+                        Community.posts[i].approved=true                
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removePost(req,res,next){
+        try
+        {
+            let {post,community}=req
+            community.posts=community.posts.filter(({postId})=>postId.toString()!==post.id)
+            await community.save()
+            req.community=community
+            await Notification.create({user:req.user.id,subject:{model:'Community',action:'removePost',id:community.id},notifier:post.publisher})
+
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async addPost(req,res,next){
+        try
+        {
+            let {user,post,community}=req
+            if(!community)
+            return next()
+            let approval=!community.postApproval
+            if(community.admins.some(id=>id.toString()===user.id||community.manager.toString()===user.id))
+            approval=true
+            community.posts.push({postId:post.id,approved:approval})
+            await community.save()
+            req.community=community
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async checkIfManagerIsAdmin(req,res,next){
+        try{
+            let {newManager,community}=req
+            let admins=[]
+            for (let i = 0; i < community.admins.length; i++) 
+                        if(community.admins[i].toString()===newManager.id)                
+                            admins.push(newManager)
+            
+                    req.admins=admins
+                    return next()
+                        }
+        catch(err){
+            consoel.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+   static async switchManager(req,res,next){
+    try
+    {
+        let {community,newManager}=req
+        if(community.members.every(({memberId})=>memberId.toString()!==newManager.id))
+        return res.json({success:false,err:'the new manager must be a member first'})
+        community.manager=newManager
+        await Notification.create({user:newManager.id,subject:{model:'Community',action:'newManager',id:community.id},notifier:req.user.id})
+
+        
+        await community.save()
+
+        req.community=community
+        return next()
+    }
+    catch(err){
+        console.log(err)
+        return res.json({success:false,err:err.message})
+    }
+   }
+   static async removeAdmin(req,res,next){
+    try
+    {
+        let {user,community}=req
+        community.admins= community.admins.filter(adminId=>adminId.toString()!==user.id)
+        await community.save()
+        req.community=community
+         
+        return next()
+    }
+    catch(err){
+        console.log(err)
+        return res.json({success:false,err:err.message})
+    }
+}
+    static async removeAdmins(req,res,next){
+        try
+        {
+            let {admins,community}=req
+            console.log('adsadasd')
+            console.log(req.admins)
+            console.log(req.body.adminsId)
+            if(!admins.length)
+            return next()
+            for (let i = 0; i < community.admins.length; i++)
+                    for (let j = 0; j < admins.length; j++) 
+                        if(admins[j].id===community.admins[i].toString())
+                            community.admins.splice(i,1)
+                            await Notification.create({user:community.admins[i],subject:{model:'Community',action:"adminOut",id:community.id},notifier:req.user.id})
+            await  community.save()
+            req.community=community
+            console.log(community)
+            console.log('asd')
+            return next()
+                        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getCommunity(req,res,next){
+
+        try
+        {
+            
+            if(!req.query.communityId&&!req.body.communityId)
+           {
+            console.log('no community was found')
+               return next()
+           }
+            const community=await Community.findById(req.body.communityId||req.query.communityId)
+            if(!community)
+            return res.json({success:false,err:'no community was found'})
+            req.community=community
+            console.log('xxxxxxxxxxxx')
+            return next()
+            }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async createCommunity(req,res,next){
+        try
+        {
+            if(!req.body.communityName||!req.body.describtion)
+            return res.json({success:false,err:'you did not send full information about the community'})
+            const existingCommunity=await Community.findOne({communityName:req.body.communityName})
+           console.log(existingCommunity)
+            if(existingCommunity!==null)
+            return res.json({success:false,err:'a community by this name already exists choose another one'})  
+           let members=[req.user.id]
+           members=members.concat(req.body.adminsId)
+           members=members.map(member=>({memberId:member}))
+           console.log(members)
+           let {data}=await axios.get(`http://127.0.0.1:5000/api/ai/text?text=${req.body.describtion}`)
+            let community=await Community.create({
+                communityName:req.body.communityName,
+                describtion:req.body.describtion,
+                admins:[... req.body.adminsId],
+                manager:req.user.id,
+                members:members,
+                public:req.body.publicity||false,
+                postApproval:req.body.postApproval||false,
+                category:data
+            })
+            req.manager=community.manager
+            req.community=community
+            await interestsMiddleWare.updateScore(community.category,'createCommunity',req.user)
+        return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async addAdmins(req,res,next){
+        try
+            {
+            let {community}=req
+            let {admins}=req
+            console.log(community)
+            for (let i = 0; i < admins.length; i++) 
+                {community.admins.push(admins[i].id)                
+                }
+            for (let i = 0; i < admins.length; i++) 
+                if(community.admins.every(id=>id.toString()!==admins[i].id))
+                community.admins.push(admins[i].id)                
+                
+         
+                await  community.save()  
+            req.community=community
+            return next()  
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }    
+    
+}
+module.exports=communityMiddleware
+--- END: middleware/communityMiddleware.js ---
+
+--- FILE: middleware/interestsMiddleware.js ---
+
+const User=require('../models/userSchema.js')
+function calcNewLast(p){
+    let newScore
+    const currentTime=new Date()
+    const diffTime = Math.abs(currentTime - p.date);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if(p.score>=0)
+     newScore=p.score-2*diffDays
+     if(p.score<0)
+     newScore=p.score+2*diffDays
+
+     const newLast={score:newScore,date:currentTime}
+    return newLast
+    }
+function subtractTimeFromDate(date, amount, unit) {
+    const unitsInMilliseconds = {
+      'hour': 60 * 60 * 1000,
+      'minute': 60 * 1000,
+      'second': 1000,
+      'day': 24 * 60 * 60 * 1000
+    };
+  
+    const amountInMilliseconds = amount * unitsInMilliseconds[unit];
+    const newDate = new Date(date.getTime() - amountInMilliseconds);
+  
+    return newDate;
+  }
+  function calcLine(y2,y1,x2,x1,xi){
+    const m=(y2-y1)/(x2-x1)
+    const b=y2-m*x2
+console.log(b+m*xi,'bb')
+console.log(y2,y1)
+    const yi=m*xi+b
+    return xi
+  }
+  function calcPoint(y2,x2,y1,x1,xi){
+    
+    if(xi>x2)
+        {
+            console.log('xi is bigger than x2 error')
+            return 
+        }
+    
+        const deltaI=x2-xi
+        const delta=x2-x1
+        const diffX=(delta-deltaI)/delta
+        const deltaY=y2-y1   
+        const yi=deltaY*diffX+y1
+
+        const pi={xi,yi}
+    return pi
+}
+  function findValue(data,wantedDate){
+    if(wantedDate.getTime()<data[0].date.getTime())
+    return 0
+    for (let i = data.length-1; i >= 0; i--) 
+    {
+        let deltaDate=wantedDate.getTime()-data[i].date.getTime()
+        if(deltaDate>=0)
+        {
+            console.log(i)
+            return i
+        }    
+    }
+  }
+function getDerivative(days,hours,minutes,seconds){
+    data=data.map(obj=>({score:obj.score,date:obj.date.getTime()}))
+    const scores=data.map(({score})=>score)
+    const times=data.map(({date})=>date)
+}
+class interestsMiddleWare{
+    constructor(){
+
+    }
+    // sharePost view-comments
+    // view-community
+    //  post comment create-communty 
+    // delete-post  delete-comment 
+    // like-post like-comment-with-attiude
+    // unlike-post
+    // join-community leave-community
+    // create-community
+    // delete-community
+    // see-post-with-duration
+    // unlike-negative/positive-comment
+    
+    static async updateScore(interest,action,user){
+        try{
+            
+            const actionsScores={
+                undislikeNegativeComment:-3,
+                dislikeNegativeComment:3,
+                undislikePositiveComment:3,
+                dislikePositiveComment:-3,
+                dislikePost:-4,
+                undislikePost:6,
+                messages:6,
+            deleteCommunity:-17,
+                viewCommunity:6,
+            viewComments:3,
+            unLikePost:-5,
+            sharePost:20,
+            createPost:15,
+            negativeComment:-5,
+                positiveComment:5,
+                createCommunity:10,
+                deletePost:-6,
+                deleteNegativeComment:2,
+                deletePositiveComment:-2,
+                likePost:3,
+                likeNegativeComment:-2,
+                likePositiveComment:2,
+                unlikeNegativeComment:2,
+                unlikePositiveComment:-2,
+                joinCommunity:22,
+                leaveCommunity:-14,
+                createCommunity:50,
+                seePostWithDuration1:3,
+                seePostWithDuration2:6,
+                seePostWithDuration3:9,}
+         let   historyLength=user.interests[interest].length
+          let  lastInterestScore=user.interests[interest][historyLength-1].score
+                  
+
+          user.interests[interest].push({score:lastInterestScore+actionsScores[action],date:new Date()})
+          await user.save()
+
+        }
+        catch(err){
+            console.log(err)
+        }
+    }
+        static async calcInterests(req,res,next){
+            try
+            {
+                let derivatives=[]
+                const {query,user}=req
+                const qs=Object.keys(query)
+                if(!qs.length)
+                    return res.json({succuss:false,err:'no query was sent'})
+                const interests=Object.keys(user.interests)
+                interests.forEach(interest=>{
+                   let scoreFunction= user.interests[interest]
+                   if(!query[interest])
+                        return
+                   if(scoreFunction.length===0)
+                        return   
+                        const newLastPoint=calcNewLast(scoreFunction[scoreFunction.length-1])    
+                    scoreFunction.push(newLastPoint)
+                    const wantedDate= subtractTimeFromDate(new Date(),5,'minute')
+
+                    let index=findValue(scoreFunction,wantedDate)
+                    const pointI=calcPoint(scoreFunction[index+1].score,scoreFunction[index+1].date.getTime(),scoreFunction[index].score,scoreFunction[index].date.getTime(),wantedDate.getTime())
+                    
+                    
+                    let derivative=(newLastPoint.score-pointI.yi)/(newLastPoint.date.getTime()-pointI.xi)*1000  
+                    derivatives.push({value:derivative,interest})
+            })
+              console.log(derivatives)
+            // Calculate the sum of all value properties
+            let totalSum = derivatives.reduce((sum, obj) => sum + obj.value, 0);
+  
+            // Calculate the percentage of each value property and add it as a new key to each object
+             derivatives.forEach(obj => obj.probability = (obj.value / totalSum).toFixed(1));
+                req.derivatives=derivatives
+                return next()
+            }
+            catch(err){
+                console.log(err)
+                return res.json({success:false,err:err.message})
+            }
+        }
+}
+module.exports=interestsMiddleWare
+--- END: middleware/interestsMiddleware.js ---
+
+--- FILE: middleware/notificationMiddleware.js ---
+const Notification =require('../models/notificationSchema.js')
+class notification {
+    constructor(){
+
+    }
+    static async createLikePostNotification(req,res,next){
+        try
+        {
+            console.log('a')
+            
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+}
+--- END: middleware/notificationMiddleware.js ---
+
+--- FILE: middleware/postMiddleware.js ---
+const Post=require('../models/postSchema.js')
+const interestsMiddleWare=require('./interestsMiddleware.js')
+const Notification=require('../models/notificationSchema.js')
+const fs = require('fs')
+const path=require('path')
+const util = require('util');
+const { post } = require('../routes/postsRoute.js');
+const rmdir=util.promisify(fs.rm)
+const FormData = require('form-data');
+const readFile = util.promisify(fs.readFile)
+const axios=require('axios')
+const User=require('../models/userSchema.js')
+const writeFile=util.promisify(fs.writeFile)
+const mkdir=util.promisify(fs.mkdir)
+async function  saveFiles(files,postId){
+    let filesNames=[]
+    let dir=`./uploaded-files/posts-files/${postId}`
+    await mkdir(dir,{recursive:true})
+   for(let i=0;i<files.length;i++){
+    const random=await require('crypto').randomBytes(8).toString('hex')
+    const filePath=`${dir}/${random}-${files[i].originalname}`
+    await writeFile(filePath,files[i].buffer)
+    filesNames.push(`${random}-${files[i].originalname}`)    
+}
+    return filesNames
+}
+class postMiddleware{
+    constructor() {
+        
+    }
+    static async updateSeq(req,res,next){
+        try{
+            let post=req.post
+            console.log(post)
+            const posts=await Post.find({category:post.category})
+            post.postCategorySeq=posts.length+1
+            await post.save()
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async classifyPost(req,res,next){
+        try
+        {
+            let {post}=req
+            let user=req.user
+            if(!req.files.length)
+            {
+            
+                const {data}=await axios.get(`http://127.0.0.1:5000/api/ai/text?text=${req.post.describtion}`)
+                await    interestsMiddleWare.updateScore(data,req.action,req.user)
+                post.category=data
+                await post.save()
+                req.post=post
+                console.log(post.category)
+                return next()
+            }
+            const file = req.files[0];
+            const formData = new FormData();
+            formData.append('image',file.buffer, {
+              filename: file.originalname,
+            });
+              let {data} = await axios.post('http://127.0.0.1:5000/api/ai/image', formData, {
+                headers: {'content-type':'multipart/form-data',
+         } });
+         if(data==='basketball'||data==='football'||data==='tennis'||data==='swimming'||data==='car')
+         data='sport'
+         if(data==='fashion'||data==='music'||data=='food')
+         data='entertainment'
+         if(data==='news')
+         data='politics'
+         if(data==='technoogy')
+         data='tech'
+         await interestsMiddleWare.updateScore(data,req.action,req.user)
+         post.category=data
+         await post.save()
+         req.post=post
+
+         return next()
+            }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getPostPublisher(req,res,next){
+        try
+        {
+            const {post}=req
+            const publihser=await User.findById(post.publisher)
+            req.publihser=publihser
+            return next()
+            }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getPosts(req,res,next){
+        try
+        {
+            let {user}=req
+            let postsList=[]
+            for (let i = 0; i < user.posts.length; i++) {
+                let post=await Post.findById(user.posts[i])
+                postsList.push(post)
+                
+            }
+            req.postsList=postsList
+            return next()
+            }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getPost(req,res,next){
+        try
+        {   
+            const post=await Post.findById(req.body.postId||req.query.postId)
+            if(!post.id)
+            return res.json({success:false,err:'post was not found'})
+            req.post=post
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }}
+    static async getComments(req,res,next){
+        try
+        {
+            let {postsList}=req
+            let commentsList=[]
+            for (let i = 0; i < postsList.length; i++) 
+            {await postsList[i].populate('comments') 
+            for (let j = 0; j < postsList[i].comments.length; j++) 
+                commentsList.push(postsList[i].comments[j])
+            }
+        req.commentsList=[... commentsList]
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }  static async getPostsList(req,res,next){
+        try
+        {
+            
+            let postsList=[]
+            postsList.push(req.post)
+            req.postsList=postsList
+                return next()
+        
+    }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }}
+        static async getQueriedPost(req,res,next){
+            try
+            {
+                const post=await Post.findById(req.query.postId)
+                if(!post)
+                return res.json({success:false,err:'no post was found'})
+                req.post=post
+                return next()
+            }
+            catch(err){
+                return res.json({success:false,err:err.message})
+            }}
+    static async deletePosts(req,res,next){
+        try
+        {
+            let {postsList}=req
+            const {user}=req
+            postsList.forEach(async(post)=>{
+                await post.delete()
+                await interestsMiddleWare.updateScore(post.category,'deletePost',req.user)
+                const notification=await Notification.create({user:post.publisher,subject:{model:'Post',action:'deletePost',id:req.query.postId}})
+            })
+
+            return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async updateLikes(req,res,next){
+        try{
+            let {post,user}=req
+            // like is a user id
+            //check if liked
+            post.likes= post.likes.filter(id=>id.toString()!==req.user.id)
+
+            if(post.likes.some(like=>like.toString()===req.user.id))
+             {
+                // user unlikes it
+                req.action='unlikePost'
+                post.likes = post.likes.filter(like=>like.toString()!==req.user.id)
+                await post.save()
+                   req.post=post
+                   req.like=false 
+                   await interestsMiddleWare.updateScore(post.category,req.action,req.user)
+                   return next()
+                }     
+                // otherwise user likes it
+                req.action='likePost'
+            post.likes.push(req.user.id)
+            await post.save()
+            req.post=post
+            req.like=true
+            await interestsMiddleWare.updateScore(post.category,req.action,req.user)
+            return next()
+
+        }
+        catch(err)
+        {
+                return res.json({success:false,err:err.message})
+        }
+    }
+    static async updateDisikes(req,res,next){
+        try{
+            let {post,user}=req
+            // checki dslike
+            post.dislikes= post.dislikes.filter(id=>id.toString()!==req.user.id)
+
+            // like is a user id
+            //check if liked
+            if(post.dislikes.some(dislike=>dislike.toString()===req.user.id))
+             {
+                // user unlikes it
+                req.action='undislikePost'
+                post.dislikes = post.dislikes.filter(dislike=>dislike.toString()!==req.user.id)
+                await post.save()
+                   req.post=post
+                   req.dislike=false 
+                   await interestsMiddleWare.updateScore(post.category,req.action,req.user)
+                   return next()
+                }     
+                // otherwise user dislikes it
+                req.action='dislikePost'
+            post.dislikes.push(req.user.id)
+            await post.save()
+            req.post=post
+            req.dislike=true
+            await interestsMiddleWare.updateScore(post.category,req.action,req.user)
+            return next()
+
+        }
+        catch(err)
+        {
+            console.log(err)
+                return res.json({success:false,err:err.message})
+        }
+    }
+    static async updatePostDescribtion(req,res,next){
+        try{
+            console.log(req.post)
+            req.post.describtion=req.body.describtion
+            let post=req.post
+            await post.save()
+            const notification=await Notification.create({user:req.user.id,subject:{model:'Post',action:'updatePost',id:req.post.id}})
+            return res.json({success:true,post})
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async verifyPostAuthor(req,res,next){
+        try{
+            let {user}=req
+        let post=await Post.findById(req.body.postId||req.query.postId)
+            req.post=post
+        if(!post)
+        return res.json({success:false,err:'post was not found'})    
+        if(post.publisher.toString()!==user.id)
+        return res.json({success:false,err:'you are not the publisher'})
+        return next()
+    }
+
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async createPost(req,res,next){
+    try{
+        const ogPost=req.ogPost
+        console.log(req.ogPost,'sssssssssssssssssssssssssssssssssssssssssss')
+        req.action='createPost'
+        if(req.headers['shared-post-id'])
+            req.action='sharePost'
+        const {describtion}=req.body
+        if(!describtion&&!req.files[0])
+        return res.json({success:false,err:'you have sent nothing'})
+        let communityId=null
+        console.log(describtion)
+        let {community}=req
+        if(community)
+        communityId=community.id
+     const post= await Post.create({
+         publisher:req.user.id
+         ,describtion
+         ,sharedPost:{post:req.headers['shared-post-id']||null},
+        community:{communityId:communityId||null,removed:false}     })
+     const names=await saveFiles(req.files,post.id)
+     for (let i = 0; i < names.length; i++) {
+         post.files.push({fileName:names[i]})
+         
+        }
+         await post.save()
+         req.post=post
+         if(req.headers['shared-post-id'])
+            await Notification.create({user:ogPost.publisher,subject:{model:'Post',action:'sharedPost',id:post.id,notifier:req.user.id}})   
+
+         await Notification.create({user:req.user.id,subject:{model:'Post',action:'createPost',id:post.id}})   
+          return next()
+    }
+    catch(err){
+        console.log(err)
+        return res.json({success:false,err:'post was not added to req object'})
+    }
+    }
+    
+    static async validateShare(req,res,next){
+        try{
+            if(!req.headers['shared-post-id'])
+            return next()
+            
+            let ogPost=await Post.findById(req.headers['shared-post-id'])
+            req.ogPost=ogPost
+            if(!ogPost.shares.length)
+            return next()
+            return next()
+        }   
+ 
+            catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+}
+module.exports=postMiddleware
+--- END: middleware/postMiddleware.js ---
+
+--- FILE: middleware/postModelSideEffecthandler.js ---
+const User=require('../models/userSchema.js')
+const Post=require('../models/postSchema.js')
+const Comment=require('../models/commentSchema.js')
+const util = require('util');
+const CommentModelSideEffectHandler=require('./commentMiddleware.js')
+const  fs=require('fs');
+const rmdir=util.promisify(fs.rm)
+class postModelSideEffectHandler{
+    constructor(){
+
+    } 
+    static async removeCommunity(req,res,next){
+        try
+        {
+            const {postsList}=req
+            for (let i = 0; i < postsList.length; i++) {
+                postsList[i].community.removed=true
+               await postsList[i].save()
+                
+            }
+            req.postsList=postsList
+            return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async deleteFiles(req,res,next){
+        try{
+            const {postsList}=req
+            for (let i = 0; i < postsList.length; i++) 
+                await rmdir(`./uploaded-files/posts-files/${postsList[i].id}`,{recursive:true})
+return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removePostsFromOgShares(req,res,next){
+        try
+        {
+            const {postsList}=req
+            for (let i = 0; i < postsList.length; i++) {
+                console.log(postsList[i].id)
+                let ogPost=await Post.findById(postsList[i].sharedPost.post)
+                
+                if(!ogPost)
+                return next()
+                for (let j = 0; j < ogPost.shares.length; j++) {
+                    console.log(ogPost.shares[j].post.toString(),'ssss',postsList[i].id)     
+                    if(ogPost.shares[j].post.toString()===postsList[i].id)
+                        {   ogPost.shares.splice(j,1)
+                            console.log('match')
+                        }}
+                await ogPost.save()                                        
+                         console.log('succcesssss')
+            }
+            return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removePostsFromShares(req,res,next){
+        try{
+            console.log('removving the share')
+            const {postsList}=req
+            for (let i = 0; i < postsList.length; i++) 
+                for (let j = 0; j < postsList[i].shares.length; j++) {
+                    let sharePost=await Post.findById(postsList[i].shares[j].post)
+                    sharePost.sharedPost.removed=true
+                    await sharePost.save()
+                     }                                                   
+               return next() 
+            }          
+            catch(err){
+                return res.json({success:false,err:err.message})
+            }
+        
+        }
+    static async removeComments(req,res,next){
+        try
+        {
+            console.log('ssssssssssss')
+            let {comment,commentsList}=req
+                for (let i = 0; i < commentsList.length; i++) 
+                {
+                    console.log('post Id ',commentsList[i].postId)
+                    let post=await Post.findById(commentsList[i].postId)
+                    console.log('before post remove',post.comments.length)
+                    for (let j = 0; j < post.comments.length; j++) 
+                                if(post.comments[j].toString()===commentsList[i].id)
+                                    post.comments.splice(j,1)                        
+                                    console.log('after post delete',post.comments.length)
+                                    await post.save()    
+                }
+                return next()
+            }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async addComment(req,res,next){
+        try{
+            let post=await Post.findById(req.body.postId)
+                if(!post)
+                return res.json({success:false,err:'no post was found'})
+                post=await post.populate('comments')
+                post.comments.push(req.comment)
+                let counter=0
+                if(post.comments.length<20)
+                    post.badComments=false
+                if(post.comments.length>=20)
+                {for (let i = 0; i < post.comments.length; i++) 
+                {
+                    if(post.comments[i].badComment)
+                        counter++
+
+                }
+                if((counter/post.comments.length)>=0.5)
+                    post.badComments=true
+                if((counter/post.comments.length)<0.5)
+                    post.badComments=false
+
+            }
+                
+                await post.save()
+              return next()
+
+        }
+        catch(err){
+
+        }
+    }
+    static async addPosterIdToOriginalPostShares(req,res,next){
+        try{
+            if(!req.post.sharedPost.post)
+            return next()
+            // console.log(req.post.sharedPost.post)
+            let originalPost=await Post.findById(req.post.sharedPost.post)
+            originalPost.shares.push({user:req.userId,post:req.post.id})
+            await originalPost.save()
+            console.log(originalPost)
+            req.ogPost=originalPost
+           return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+            static async addPostToUserPosts(userId,postId){
+        try{
+        let  user=await User.findById(userId)
+      user.posts.push(postId)
+      await user.save()
+      console.log(user.posts)}
+      catch(err){
+        console.log(err.message)
+        return res.jsoN
+    }
+    }
+    static async addUserToPostShares(userId,postId){
+        const post=await Post.findById(postId)
+        post.shares.push({user:userId})
+        await post.save()
+    }
+    static async addPostToUserLikedPosts (userId,postId,like){
+        try{
+        let  user=await User.findById(userId)
+        console.log(like)
+        if(like){
+        user.postsLiked.push(postId)
+        await user.save()
+    }
+if(!like){
+    console.log('aaa')
+user.postsLiked=user.postsLiked.filter(id=>id.toString()!==postId.toString())
+await user.save()
+}}
+catch(err){
+console.log(err.message)
+}
+}
+    static async addPostToUserSharedPost(userId,postId){
+        try{const user=await User.findById(userId)
+        user.postsShared.push(postId)
+        await user.save()}
+        catch(err){
+console.log(err.message)       
+ }
+    
+    }
+    //delete post from user record
+    //remove the shared post
+
+    static async deletePostFromUserRecord(userId,postId){
+      try{
+        let user=await User.findById(userId)
+        if(user.posts.length){
+        user.posts=user.posts.filter(id=>id.toString()!==postId.toString())
+       await user.save()
+        const userPost=await Post.findById(postId)
+        console.log(userPost)
+        // find people who shared and delete post from their postsShared record
+        if(userPost.shares.length){
+            // share is the id of the user who shared
+        userPost.shares.forEach(async(share)=>{
+            // get the user who shared the post
+            let sharer=await User.findById(share.user)
+            // filter the shared posts list from user doc            
+            sharer.postsShared=sharer.postsShared.filter(id=>id.toString()!==postId.toString())
+            console.log(sharer)
+            await sharer.save()
+        })}
+        //see if post has likes
+        if(userPost.likes.length){
+            // remove post from posts liked record in user doc
+ 
+            userPost.likes.forEach(async(like)=>{
+                  // find likers and filter the post from postsLiked list             
+                console.log(like.user)
+                  let liker =await User.findById(like.user)
+                console.log(liker)
+                liker.postsLiked=liker.postsLiked.filter(id=>id.toString()!==postId.toString())
+                await liker.save()
+            })
+        }
+        }
+    await user.save()
+
+}
+    catch(err){
+console.log(err)    }
+    }
+    // remove the post from the shares list
+
+
+
+    static async removePostsFromPostsRecord(req,res,next){
+        try
+        {
+            const {postsList}=req
+            for (let i = 0; i < postsList.length; i++) {
+                let sharePost=await Post.findById()
+                
+            }
+        }
+            catch(err){
+            console.log(err)
+        }
+    }
+    // check if the user if the post owner
+    static async validatePostAction(req,res,next){
+        try{
+            const post =await Post.findById(req.query.postId)
+            if(req.userId.toString()===post.publisher.toString())
+            return next()
+            return res.json({success:false,err:'your not the owner of the post'})
+        }
+        catch(err){
+            console.log(err)
+            }
+    }
+}
+module.exports=postModelSideEffectHandler
+--- END: middleware/postModelSideEffecthandler.js ---
+
+--- FILE: middleware/userMiddleware.js ---
+const User= require('../models/userSchema.js')
+const fs=require('fs')
+const util=require('util')
+const Notification=require('../models/notificationSchema.js')
+const bcrypt = require('bcrypt');
+const mkdir=util.promisify(fs.mkdir)
+const readdir=util.promisify(fs.readdir)
+const unlink=util.promisify(fs.unlink)
+const readFile=util.promisify(fs.readFile)
+const writeFile=util.promisify(fs.writeFile)
+const access=util.promisify(fs.access)
+async function checkUserBlock(req,res,userId){
+    try
+    {
+        let {user}=req
+        if(user.blockedUsers.length)
+        if(user.blockedUsers.some(id=>is.toString()===userId.toString()))
+            return true
+            return false
+    }
+    catch(err){
+        return res.json({success:false,err:err.message})
+    }
+}
+// check if users exists
+// async function getUsers(res,usersId){
+//     let users=[]
+//     usersId.forEach(async (id)=>{
+//         let user=await User.findById(id)
+//         if(!user)
+//         return res.json({success:false,err:'user was not found'})
+//         users.push(user)
+//     })
+//     return users
+// }
+
+// input is image file and saved dir
+// first checks if dir exists
+// if it does not exists then this is the first time
+// and should create his dir
+// if it does then delete old images
+// save new image with unique name and return name 
+async function saveUserImage(imageFile,dir){
+    try{
+        let imagesNames=[]
+       let a = fs.existsSync(dir)
+        if(!fs.existsSync(dir))
+        await mkdir(dir,{recursive:true})
+       
+        if(fs.existsSync(dir))
+        {
+
+        imagesNames= await readdir(dir)
+        if(imagesNames.length)
+        imagesNames.forEach(async(imageName)=>await unlink(`${dir}/${imageName}`))
+    }
+        const random=await require('crypto').randomBytes(8).toString('hex')
+        const filePath=`${dir}/${random}-${imageFile.originalname}`
+        await writeFile(filePath,imageFile.buffer,{recursive:true})
+        return `${random}-${imageFile.originalname}`
+    }
+    catch(err){
+        console.log(err)
+        
+    }
+    }
+class userMiddleware{
+    constructor(){
+
+
+    }
+    static async checkCommunityBlock(req,res,next){
+        try
+        {
+            let {user,community}=req
+            if(user.blockedCommunities.some(id=>id.toString()===community.id))
+            return res.json({success:false,err:'you  blocked this community'})
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getBlockedUser(req,res,next){
+        try
+        {
+            console.log('das')
+            let blockedUser=await User.findById(req.query.blockedUserId||req.body.blockedUserId)
+            req.blockedUser=blockedUser
+            return next()
+
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async verifyJoinerNoRole(req,res,next){
+        try
+        {
+            let {joiner,community}=req
+            
+            if(joiner.adminedCommunities.some(cid=>cid.toString()===community.id))
+            return res.json({success:false,err:'you are an admin'})
+            if(joiner.managedCommunities.some(cid=>cid.toString()===community.id))
+            return res.json({success:false,err:'you are the manager'})
+            return next()
+
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getJoiner(req,res,next){
+        try
+        {
+            let joiner=await User.findById(req.query.joinerId||req.body.joinerId)
+            if(!joiner)
+            return res.json({success:false,err:'no joiner was found'})
+            req.joiner=joiner
+            return next()
+            }
+            catch(err){
+          console.log(err)
+          return res.json({success:false,err:err.message})
+        }
+      }
+    static async findUser(req,res,next){
+        try
+        {
+            const user=await User.findById(req.body.userId||req.query.userId)
+            if(!user)
+            return res.json({success:false,err:'no user was found'})
+            req.user=user
+            return next()
+        }
+        catch(err){
+          console.log(err)
+          return res.json({success:false,err:err.message})
+        }
+      }
+    static async checkManagerNotAdmin(req,res,next){
+        try
+        {
+            let {user}=req
+            let {adminsId}=req.body
+            if(adminsId.some(id=>id.toString()===user.id))
+                return res.json({success:false,err:'you cant do both roles'})
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getNewManager(req,res,next){
+        try
+        {
+        let newManager=await User.findById(req.body.newManagerId)
+        if(!newManager)
+        return res.json({success:false,err:'new manager does not exists'})
+        if(newManager.id===req.user.id)
+        return res.json({success:false,err:'can not send the same old manager'})
+        req.newManager=newManager
+        return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async createUser(req,res,next){
+        try{ const {firstName,lastName,middleName,birthDate,city,country,age,phoneNumber,sex,street,email,password}= req.body
+          const hashedPassword=await bcrypt.hash(password,10)
+        const user =await User.create({
+          password:hashedPassword,  
+          firstName,
+              lastName,
+              middleName,
+              birthDate,
+              age,
+             address:{
+                      country,
+                      city,
+                      street
+             },
+              phoneNumber,
+              sex,
+              email,
+              interests:{
+                business:[{socre:0}]
+                ,scienceAndEnviroment:[{socre:0}]
+                ,technology:[{socre:0}]
+                ,health:[{socre:0}]
+                ,travel:[{socre:0}],
+                entertainmentAndArts:[{socre:0}]
+                ,sport:[{socre:0}],
+                basketBall:[{socre:0}],
+                football:[{socre:0}],
+                tennis:[{socre:0}],
+                fashion:[{socre:0}],
+                news:[{socre:0}],
+                food:[{socre:0}],
+                music:[{socre:0}],
+                car:[{socre:0}],
+                politics:[{socre:0}],
+            
+              }
+          })
+          req.user=user
+        
+          await user.save()
+          return next()
+        }
+      
+      catch(err){
+      res.status(400).json({success:false,err:err.message})
+      }
+      }
+    static async getAdmins(req,res,next){
+        try{
+            console.log('got the admins')
+            let admins=[]
+            let {community}=req
+            const {adminsId}=req.body
+            if(adminsId)
+            if(adminsId.length)
+            for (let i = 0; i < adminsId.length; i++) {
+                let user=await User.findById(adminsId[i])
+                if(!user)
+                return res.json({success:false,err:'no user was found'})
+                admins.push(user)
+            }
+            req.admins=admins
+            return next()
+            
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+      static async checkAdmins(req,res,next){
+        try{
+            
+            let {admins}=req
+            if(!admins.length)
+            return res.json({success:false,err:'no admins were sent'})
+            const {community}=req
+            console.log(community,'adsdsadsadads')
+            if(!community.admins.length)
+            return next()
+            for (let i = 0; i < admins.length; i++) {
+                if(!admins[i].adminedCommunities.length)
+                    continue
+            if(community.admins.some(adminId=>adminId.toString()===admins[i].id)||admins[i].adminedCommunities.some(commId=>commId.toString()===community.id))
+                return res.json({success:false,err:'found an existing admin try again with the same list'})
+            return next()
+                      }
+                                  }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+      }
+      static async destructUser(req,res,next){
+        try
+        {
+           let {user}=req
+           // get posts            
+           user= await user.populate('posts')
+           req.postsList=[... user.posts]
+           // get likded posts
+           user=await user.populate('postsLiked')
+           req.postsLikedList=[... user.postsLiked]
+           // get comments
+           user=await user.populate('comments')
+           req.commentsList=[... user.comments]
+           
+           // get comments liked
+           user=await user.populate('commentsLiked')
+           req.commentsLikedList=user.commentsLiked
+           return next() 
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async checkIfFollowes(req,res,next){
+        try
+        {
+         const {user,addedUser}=req
+         if(user.id===addedUser.id)
+         return res.json({success:false,err:'you can not follow your self'})
+         let response= await checkUserBlock(req,res,addedUser.id,user.id)
+         if(response)
+         return res.json({success:false,err:'user is blocked by you'})
+         if(user.followes.every(friendId=>addedUser.id!==friendId.toString()))
+         return next()
+           user.followes= user.followes.filter(friendId=>friendId.toString()!==addedUser.id)
+           await user.save()
+           addedUser.followers=addedUser.followers.filter(friendId=>friendId.toString()!==user.id)
+           await addedUser.save()
+           return res.json({success:true,followes:addedUser})
+            
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async getUser(req,res,next){
+        try
+        {
+            console.log(req.body)
+            let user=await User.findById(req.query.userId||req.body.userId)
+            req.addedUser=user
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    } 
+   
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+        static async updateCoverImage(req,res,next){
+            try
+        {
+            const coverImage=req.files[0]
+            console.log(coverImage)
+            let {style}=req.body
+            style=JSON.parse(style)
+            const profileDir=`./uploaded-files/users-images/${req.user.id}/user-cover-image`
+            const imageName= await saveUserImage(coverImage,profileDir)
+            const image={imageName,style}
+                req.image=image
+                req.imageType='cover'
+                return next()
+
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async updateProfileImage(req,res,next){
+        try
+        {
+            const profileImage=req.files[0]
+            console.log(req.files)
+            let {style}=req.body
+            style=JSON.parse(style)
+            const profileDir=`./uploaded-files/users-images/${req.user.id}/user-profile-image`          
+            const imageName= await saveUserImage(profileImage,profileDir)
+            const image={imageName,style}
+                req.image=image
+                req.imageType='profile'
+                return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+
+    static async saveUserImage(req,res,next){
+        try
+        {
+            let {user}=req
+            if(req.imageType==='profile')
+            user.profileImage=req.image
+            if(req.imageType==='cover')
+            user.coverImage=req.image
+            await user.save()
+            return next()
+
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+}
+
+module.exports=userMiddleware
+--- END: middleware/userMiddleware.js ---
+
+--- FILE: middleware/userModelSideEffectHandler.js ---
+const User=require('../models/userSchema.js')
+const Comment=require('../models/commentSchema.js')
+const fs=require('fs')
+const Notification=require('../models/notificationSchema.js')
+const util=require('util')
+const { json } = require('body-parser')
+const interestsMiddleWare = require('./interestsMiddleware.js')
+const mkdir=util.promisify(fs.mkdir)
+const readFile=util.promisify(fs.readFile)
+const writeFile=util.promisify(fs.writeFile)
+class userModelSideEffectHandler{
+    constructor(){
+    }
+    static async blockCommunity(req,res,next){
+        try
+        {
+            let {user,community}=req
+            if(user.blockedCommunities.some(id=>id.toString()===community.id))
+                {user.blockedCommunities= user.blockedCommunities.filter(id=>id.toString()!==community.id)
+                    await user.save()
+                    return next()
+                }
+                user.blockedCommunities.push(community.id)
+                await user.save()
+                req.user=user
+                console.log('asdsa')
+                return next()
+            }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async blockUser(req,res,next){
+        try
+        {
+            let {user,blockedUser,community}=req
+            console.log(req.user,'shoul')
+            if(user.blockedUsers.length)
+            if(user.blockedUsers.some(id=>id.toString()===blockedUser.id))
+                {user.blockedUsers= user.blockedUsers.filter(id=>id.toString()!==blockedUser.id)
+                    await user.save()
+                    req.user=user
+                    console.log('dasdas')
+                    return next()
+                }
+                user.blockedUsers.push(blockedUser.id)
+                await user.save()
+                return next()
+            }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removeMembers(req,res,next){
+        try
+        {
+            let {community}=req
+            for (let i = 0; i < community.members.length; i++)
+            {
+                let member=await User.findById(community.members[i].memberId)
+                member.communities=member.communities.filter(({communityId})=>communityId.toString()!==community.id)
+                await member.save()
+            }
+            return next()            
+            }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async deleteFromFriends(req,res,next){
+        try
+        {
+            let {user}=req
+            for (let i = 0; i < user.friends.length; i++) {
+                let friend=await User.findById(user.friends[i])
+                friend.friends=friend.friends.filter(id=>id.toString()!==user.id)
+                await friend.save()
+            
+            }
+            return next()
+                    }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async approvedCommunity(req,res,next){
+        try
+        {
+            let {community,joiner}=req
+                    for (let i = 0; i < joiner.communities.length; i++) 
+                            if(joiner.communities[i].communityId.toString()===community.id)
+                                  { joiner.communities[i].approved=true  
+                                    await joiner.save()                      
+                                   return next()
+                                }
+                                return res.json({success:false,err:'no community was found in joiner record'})
+                            }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removeCommunity(req,res,next){
+        try{
+            let {community,user}=req
+            if(req.query.joinerId||req.body.joinerId){
+                let joiner=await User.findById(req.query.joinerId||req.body.joinerId)
+                if(!joiner)
+                return res.json({success:false,err:'no joiner was found'})
+                joiner.communities=joiner.communities.filter(({communityId})=>communityId.toString()!==community.id)
+               await joiner.save()
+                return next()
+            }
+            user.communities=user.communities.filter(({communityId})=>communityId.toString()!==community.id)
+            await user.save()
+            return next()            
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async requestCommunityMembership(req,res,next){
+        try{
+            let {user,community}=req
+            if(user.communities.some(({communityId})=>communityId.toString()===community.id))
+            return res.json({success:false,err:'you already on the list'})
+            user.communities.push({communityId:community.id})
+            await user.save()
+            await interestsMiddleWare.updateScore(community.category,'joinCommunity',user)
+            await Notification.create({user:community.manager,subject:{model:'Community',action:'membershipRequest',id:community.id},notifier:req.user.id})
+            community.admins.forEach(async(admin)=>{
+                await Notification.create({user:admin,subject:{model:'Community',action:'membershipRequest',id:community.id},notifier:req.user.id})
+            })
+            return next()
+            
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async updateManagersState(req,res,next){
+        try{
+            let {newManager,user,community}=req
+            newManager.managedCommunities.push(community.id)
+            user.managedCommunities=user.managedCommunities.filter(id=>id.toString()!==community.id)
+            await newManager.save()
+            await user.save()
+            return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removeAdmin(req,res,next){
+        try{
+            let {community,user}=req
+            user.adminedCommunities=user.adminedCommunities.filter(commId=>commId.toString()!==community.id)
+            await user.save()
+            req.user=user
+            await Notification.create({user:req.user.id,subject:{model:'Community',action:'adminOut',id:communty.id}})
+            return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removeAdmins(req,res,next){
+        try{
+            let {admins,community}=req
+            if(!admins.length)
+            return next()
+            for (let i = 0; i < admins.length; i++) 
+            {
+                for(let j=0;j<admins[i].adminedCommunities.length;j++)
+                        if(admins[i].adminedCommunities[j].toString()===community.id)
+                            admins[i].adminedCommunities.splice(j,1)
+                await admins[i].save()
+                await Notification.create({user:admins[i].id,subject:{model:'Community',action:'removeAdmin',id:community.id},notifier:req.user.id})
+
+            }
+            return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async addAdminedCommunity(req,res,next){
+        try
+        {
+            let {community}=req
+            let {admins}= req
+            let{user}=req
+            admins.forEach(async(admin)=>{admin.adminedCommunities.push(community.id)
+            await admin.save()
+            await Notification.create({user:admin.id,subject:{model:'Community',action:'addedAdmin',id:community.id},notifier:req.user.id})
+            })
+            req.admins=admins
+            req.community=community
+            console.log('dsada')
+            return next()                  
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async addManagedCommunity(req,res,next){
+        try{
+            let user=await User.findById(req.community.manager)
+            if(user.managedCommunities.some(id=>id.toString()===req.community.id))
+            return res.json({success:false,err:'user already has a manager'})
+            user.managedCommunities.push(req.community.id)
+            await user.save()
+            req.user=user
+            return next()
+        }
+        
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removeManagedCommunity(req,res,next){
+        try
+        {
+            console.log(req.community)
+            let user=await User.findById(req.user.id)
+            user.managedCommunities= user.managedCommunities.filter((async(communityId)=>communityId.toString()!==req.community.id))
+            await user.save()
+            req.user=user
+            return next()
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removeAdminedCommunity(req,res,next){
+        try{  
+            let user=await User.findById(req.user.id)
+            user.adminedCommunities= user.adminedCommunities.filter(async(communityId=>communityId.toString()!==req.community.id))
+            await user.save()
+            return next()
+
+        }
+        catch(err){
+            console.log(err)
+            return res.json({success:false,err:err.message})
+        }
+    }
+   static async addFollow(req,res,next){
+    try
+    {
+        let {user,addedUser}=req
+        user.followes.push(addedUser.id)
+        await user.save()
+        addedUser.followers.push(user.id)
+        await addedUser.save()
+        req.friend=addedUser
+        await Notification.create({user:addedUser.id,notifier:req.user.id,subject:{model:'User',action:'followUser',id:req.user.id}})
+        return next()
+    }
+    catch(err){
+        console.log(err)
+        return res.json({success:false,err:err.message})
+    }
+   }
+   
+    static async removePosts(req,res,next){
+        try{    
+            let {postsList}=req
+            console.log('started removing post')
+            for (let i = 0; i < postsList.length; i++) 
+                {
+                    let user=await User.findById(postsList[i].publisher)
+                    for (let j = 0; j < user.posts.length; j++) 
+                    if(user.posts[j].toString()===postsList[i].id)
+                    user.posts.splice(j,1)
+                    await user.save()
+                }
+                console.log('post removed')
+                return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removeLikedPosts(req,res,next){
+        try
+        {
+            const {postsList}=req
+            for (let i = 0; i < postsList.length; i++) 
+                for (let j = 0; j < postsList[i].likes.length; j++) {
+                    let user=await User.findById(postsList[i].likes[j])
+                    console.log(user)
+                        for (let k = 0; k < user.postsLiked.length; k++) 
+                            if(user.postsLiked[k].toString()===postsList[i].id)
+                                user.postsLiked.splice(k,1)
+                    await user.save()
+                            }   
+                            return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removeComments(req,res,next){
+        try{
+                let {commentsList}=req
+                    for (let i = 0; i < commentsList.length; i++) {
+                        let user=await User.findById(commentsList[i].user)
+                        console.log('found user with comments of',user.comments)
+                        console.log('now iterating the user')
+                        for (let j = 0; j < user.comments.length; j++){ 
+                        console.log('uesr comment',commentsList[i].id)
+                        console.log('iterated comment',user.comments[j].toString())    
+                        if(user.comments[j].toString()===commentsList[i].id)
+                            {
+                                    console.log('found a match')
+                                    user.comments.splice(j,1)
+                                    await user.save()
+                            }
+                        }
+                            
+                        }
+                        console.log('done removing comments')
+                        return next()
+                        
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async removeLikes(req,res,next){
+        try
+        {
+            let {commentsList}=req
+            console.log('removing likes',commentsList.length)
+         for (let i = 0; i < commentsList.length; i++) 
+         {
+            for (let j = 0; j < commentsList[i].likedBy.length; j++) {
+                let user=await User.findById(commentsList[i].likedBy[j])
+                for (let k = 0; k < user.commentsLiked.length; k++) 
+                    if(user.commentsLiked[k].toString()===commentsList[i].id)
+                            user.commentsLiked.splice(k,1)
+            
+                await user.save()
+                        }
+         }
+         console.log('done removing likes')
+         return next()
+    }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async addLikedComment(req,res,next){
+        try
+        {
+            let {like,user,comment}=req
+          if(like)
+            user.commentsLiked.push(comment.id)
+            if(!like)
+            user.commentsLiked=user.commentsLiked.filter(liekedCommentId=>liekedCommentId.toString()!==comment.id)
+          await user.save()
+          return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async addComment(req,res,next){
+        try
+        {
+           let user=await User.findById(req.user.id)
+           user.comments.push(req.comment.id)
+         await user.save()
+         req.user=user
+           return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async addPostToPublisherPosts(req,res,next){
+        try
+        {
+            req.user.posts.push(req.post.id)
+            let user=req.user
+            await user.save()
+            return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async updateLikes(req,res,next){
+        try
+        {
+            
+           let {user}=req
+            console.log(req.like)
+            if(req.like)
+            user.postsLiked.push(req.post.id)
+            if(!req.like)
+          user.postsLiked=user.postsLiked.filter(postId=>postId.toString()!==req.post.id.toString())
+        
+        await user.save()
+        const notification=await Notification.create({user:req.post.publisher,subject:{model:'Post',action:'likePost',id:req.post.id},notifier:req.user.id})
+        
+            return next()
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    static async deletePost(req,res,next){
+        try
+        {
+            let user={req}
+            user.posts=user.posts.filter(postId=>postId.toString()!==req.post.id)
+            return next()
+
+        }
+        catch(err){
+            return res.json({success:false,err:err.message})
+        }
+    }
+    
+}
+module.exports=userModelSideEffectHandler
+--- END: middleware/userModelSideEffectHandler.js ---
+
+--- FILE: models/commentSchema.js ---
+const mongoose = require('mongoose')
+const commentSchema=new mongoose.Schema(
+    {
+        user:{type:mongoose.SchemaTypes.ObjectId,ref:'User'}
+        ,content:{
+            type:String,
+            reqiured:true
+        },
+        postId:{type:mongoose.SchemaTypes.ObjectId,ref:'Post'}
+        ,
+        badComment:{type:Boolean,default:true},
+        //comment
+        repliedBy:[{type:mongoose.SchemaTypes.ObjectId,ref:'Comment'}],
+        repliedTo:String,
+        dislikedBy:[{type:mongoose.SchemaTypes.ObjectId,ref:'User'}],
+        likedBy:[{type:mongoose.SchemaTypes.ObjectId,ref:'User'}],
+        positivity:Boolean
+
+    }
+,{versionKey:false,timestamps:true})    
+module.exports=mongoose.model('Comment',commentSchema)
+--- END: models/commentSchema.js ---
+
+--- FILE: models/communitySchema.js ---
+const mongoose=require('mongoose')
+const communitySchema=new mongoose.Schema({
+    waitingList:[{userId:{type:mongoose.SchemaTypes.ObjectId,ref:'User'},askedAt:{
+    type:Date,
+    default:()=> new Date()
+
+}}]
+,
+blockedUsers:[{type:mongoose.SchemaTypes.ObjectId,ref:'User'}],
+coverImageName:{
+    type:String,
+    default:null
+},
+category:String,
+public:{
+    type:Boolean,
+    default:false
+}
+    ,postApproval:{
+        type:Boolean,
+        default:false
+    },
+    manager:{type:mongoose.SchemaTypes.ObjectId,ref:'User',required:true}
+    ,admins:[
+        {type:mongoose.SchemaTypes.ObjectId
+        ,ref:'User'}]
+    ,communityName:{
+        type:String,
+        required:true
+    },
+    describtion:{
+        required:true,
+        type:String
+    },
+    posts:[{postId:{type:mongoose.SchemaTypes.ObjectId,ref:'Post'}
+    ,approved:{
+        type:Boolean,
+        default:false
+    }}],
+    members:[{memberId:{type:mongoose.SchemaTypes.ObjectId,ref:'User'}
+    
+    ,joinedAt:{
+        type:Date,
+        default:()=> new Date()
+    }}]    
+},{versionKey:false,timestamps:true})
+module.exports=mongoose.model('Community',communitySchema)
+--- END: models/communitySchema.js ---
+
+--- FILE: models/notificationsActions.json ---
+{
+    "createPost":"you have create <subject.id>",
+    "deletePost":"you have deleted <subject.id>",
+"updatepost":"you have updated your Post <subject.id>"
+,"sharePost":"<notifier> has shared your post <subject.id>",
+"createComment":"<user> has commented on your post <subject.id>",
+"updateComment":"you have updated your comment",
+"likeComment":"<notifier> has liked your comment <subject.id>",
+"replyComment":"<notifier> has replied to your comment <subject.id>",
+"deleteComment":"your comment has been deleted <subject.id>",
+"followUser":"<user> has followed you",
+"updateUser":"your profile has been updated",
+"approvePost":"your post <model.id> has been approved",
+"addedAdmin":"you have been appointed as admin by <user>",
+"newManager":"you have been appointed the new manager",
+"removePost":"your post on <community> has been removed",
+"memberJoin":"wellcome to this <community>",
+"adminOut":"you are no admin any more <community> (if notifier is empty) || <notifier> is no admin any more at <community>"
+}
+--- END: models/notificationsActions.json ---
+
+--- FILE: models/notificationSchema.js ---
+const mongoose = require('mongoose')
+const notificationSchema=new mongoose.Schema({
+    user:{type:mongoose.SchemaTypes.ObjectId,ref:'User'},
+    sent:{type:Boolean,default:false,require:true},
+       notifier:{type:mongoose.SchemaTypes.ObjectId,
+        ref:'User'
+       },
+       subject:{
+        model:String,
+        action:String,
+        id:String
+       },
+       message:String
+    }
+,{versionKey:false,timestamps:true})    
+        
+    
+
+module.exports=mongoose.model('Notification',notificationSchema)
+--- END: models/notificationSchema.js ---
+
+--- FILE: models/postSchema.js ---
+const mongoose = require('mongoose')
+// const User
+const postSchema=new mongoose.Schema({
+   publisher:{
+        type:mongoose.SchemaTypes.ObjectId,ref:'User'
+    }
+    ,
+    community:{
+    communityId:{type:mongoose.SchemaTypes.ObjectId,
+    ref:'Community'
+   },
+  removed:{
+    type:Boolean,
+    default:false
+  }}
+    ,
+describtion:{
+    type:String,
+},
+//post that was shared
+sharedPost:{post:{type:mongoose.SchemaTypes.ObjectId,ref:'Post'},removed:{
+  type:Boolean,
+  default:false
+} }
+,
+badComments:{type:Boolean,default:false}
+,
+files:[{
+    fileName:String,
+  style:{
+    top:String,
+    bottom:String,
+    scale:Number
+  }  
+}],
+likes:[{type:mongoose.SchemaTypes.ObjectId,ref:'User'}],
+dislikes:[{type:mongoose.SchemaTypes.ObjectId,ref:'User'}],
+comments:[{type:mongoose.SchemaTypes.ObjectId,ref:'Comment'}],
+//people who shared
+shares:[{user:{type:mongoose.SchemaTypes.ObjectId,ref:'User'},
+post:{type:mongoose.SchemaTypes.ObjectId,ref:'Post'}
+}],
+category:String,
+postCategorySeq:Number
+},{versionKey:false,timestamps:true})
+
+    module.exports=mongoose.model('Post',postSchema)
+--- END: models/postSchema.js ---
+
+--- FILE: models/userSchema.js ---
+const mongoose = require('mongoose')
+const userSchema= new mongoose.Schema({
+    blockedCommunities:[{type:mongoose.SchemaTypes.ObjectId,ref:'Community'}]    
+,
+    blockedUsers:[{type:mongoose.SchemaTypes.ObjectId,ref:'User'}],
+
+    firstName:{
+        type:String,required:true
+    },age:{
+        type:Number,required:true
+    },
+    password:{
+        required:true,
+        type:String
+    }
+    ,
+    lastName:{
+        type:String
+        ,required:true
+    },
+    middleName:{ 
+    type:String
+    },
+    posts:[{type:mongoose.SchemaTypes.ObjectId,ref:'Post'}],
+    profileImage:{
+            imageName:{type:String,default:''},
+            style:{
+                top:{type:String,default:''},
+                scale:{type:String,default:''}
+            }            
+    },
+    coverImage:{
+            imageName:{type:String,default:''},
+            style:{
+                top:{type:String,default:''},
+                scale:{type:String,default:''}
+            }            
+    },
+    followers:[{type:mongoose.SchemaTypes.ObjectId,ref:'User'}],
+    followes:[{type:mongoose.SchemaTypes.ObjectId,ref:'User'}],
+    address:{
+        country:String,
+        city:String,
+        street:String
+    },
+    job:String,
+    education:{
+        educationLevel:String,
+        educationPlace:String,
+        finished:Boolean
+    },
+
+    managedCommunities:[{type:mongoose.SchemaTypes.ObjectId,ref:'Community'}],
+    adminedCommunities:[{type:mongoose.SchemaTypes.ObjectId,ref:'Community'}],
+    communities:[{communityId:{type:mongoose.SchemaTypes.ObjectId,ref:'Community'},approved:{
+        type:Boolean,
+        default:false
+    }}],
+    interests:{
+        business:[{score:{type:Number,default:0},date:{type:Date,default:new Date()}}],
+        tech:[{score:{type:Number,default:0},date:{type:Date,default:new Date()}}],
+        entertainment:[{score:{type:Number,default:0},date:{type:Date,default:new Date()}}],
+        sport:[{score:{type:Number,default:0},date:{type:Date,default:new Date()}}],
+        politics:[{score:{type:Number,default:0},date:{type:Date,default:new Date()}}]
+    },
+    photosUrl:[String],
+    email:{
+        type:String,
+    },
+    phoneNumber:{
+        type:Number
+    },
+    notifications:[{type:mongoose.SchemaTypes.ObjectId,ref:'Notification'}],
+    postsLiked:[{type:mongoose.SchemaTypes.ObjectId,ref:'Post'}],
+    commentsLiked:[{type:mongoose.SchemaTypes.ObjectId,ref:'Comment'}],
+    comments:[{type:mongoose.SchemaTypes.ObjectId,ref:'Comment'}]
+},{versionKey:false,timestamps:true})
+module.exports=mongoose.model('User',userSchema)
+--- END: models/userSchema.js ---
+
+--- FILE: routes/commentsRoute.js ---
+const express=require('express')
+const post=require('../controllers/postsRoute.js')
+const multer = require('multer');
+const postMiddleware=require('../middleware/postMiddleware.js')
+const postModelSideEffectHandler=require('../middleware/postModelSideEffecthandler.js')
+const commentMiddleware=require('../middleware/commentMiddleware.js')
+const commentModelSideEffectHandler=require('../middleware/commentModelSideEffectHandler.js')
+const userModelSideEffectHandler=require('../middleware/userModelSideEffectHandler.js');
+const postController = require('../controllers/postsRoute.js');
+const commentController=require('../controllers/commentsRoute.js');
+const auth = require('../middleware/authentication.js');
+const userMiddleware = require('../middleware/userMiddleware.js');
+const communityMiddleware = require('../middleware/communityMiddleware.js');
+const router=express.Router()
+// get communty
+// router.get('/replies',auth.verifyToken,communityMiddleware.getCommunity,userMiddleware.checkCommunityBlock,communityMiddleware.checkUserBlock)
+// create comment
+// if comment is a reply then find the orginal comment and handle error if found and add it to req object
+// hande user side effect and handle post side effect eventually send comment
+router.post('/',auth.verifyToken,postMiddleware.getPost,commentMiddleware.checkForOgComment,commentMiddleware.createComment,commentModelSideEffectHandler.addCommentToOgComment
+,postModelSideEffectHandler.addComment,userModelSideEffectHandler.addComment,commentController.sendComment)
+
+// edit comment 
+router.patch('/',auth.verifyToken,commentMiddleware.checkAuth,commentMiddleware.updateComment,commentController.sendComment)
+// like a comment
+// score updated
+router.patch('/likes',auth.verifyToken,postMiddleware.getPost,commentMiddleware.verifyComment,commentMiddleware.updateCommentLikes,userModelSideEffectHandler.addLikedComment,commentController.sendComment)
+router.patch('/dislikes',auth.verifyToken,postMiddleware.getPost,commentMiddleware.verifyComment,commentMiddleware.updateCommentDislikes,commentController.sendComment)
+// get comment and it's replies then delete users then remove the list from the post 
+router.delete('/',auth.verifyToken,
+commentMiddleware.checkAuth,
+commentModelSideEffectHandler.removeCommentFromOgComment
+// input comment doc
+// output commentsList which is a list of the comment and it's replies docs
+,commentMiddleware.getCommentAndReplies,
+// input is commentsList
+userModelSideEffectHandler.removeLikes,
+// input is commentsList
+userModelSideEffectHandler.removeComments,
+// input is commentsList
+postModelSideEffectHandler.removeComments,
+// input is commentsList
+commentMiddleware.deleteComments,
+// input is comment
+commentController.sendComment)
+module.exports=router
+--- END: routes/commentsRoute.js ---
+
+--- FILE: routes/communityRoute.js ---
+const express = require('express')
+const auth=require('../middleware/authentication.js')
+const userModelSideEffectHandler=require('../middleware/userModelSideEffectHandler.js')
+const communityMiddleware=require('../middleware/communityMiddleware.js')
+const communityController=require('../controllers/communityRoute.js')
+const userController=require('../controllers/userRoute.js')
+const userMiddleware = require('../middleware/userMiddleware.js')
+const postMiddleware = require('../middleware/postMiddleware.js')
+const postModelSideEffectHandler = require('../middleware/postModelSideEffecthandler.js')
+const { verifyCommunityAdmin, verifyCommunityRole } = require('../middleware/authentication.js')
+const postController = require('../controllers/postsRoute.js')
+const router=express.Router()
+// get community posts
+router.get('/get-posts',auth.verifyToken,communityController.sendCommunityPosts)
+router.get('/unapproved/get-posts',auth.verifyToken,communityController.sendCommunityUnapprovedPosts)
+// approve post
+router.patch('/posts',auth.verifyToken,communityController.approvePost)
+
+// create community
+router.post('/',auth.verifyToken,userMiddleware.checkManagerNotAdmin,userMiddleware.getAdmins,
+communityMiddleware.createCommunity,
+userModelSideEffectHandler.addAdminedCommunity
+,userModelSideEffectHandler.addManagedCommunity
+,communityController.getCommunity)
+
+
+// get community
+
+// need to populate posts thoughs
+
+router.get('/',communityController.sendCommunity)
+// add admins 
+router.post('/admins',auth.verifyToken,auth.verifyCommunityManager,userMiddleware.checkManagerNotAdmin,
+communityMiddleware.getCommunity,userMiddleware.getAdmins
+,userMiddleware.checkAdmins,communityMiddleware.addAdmins,userModelSideEffectHandler.addAdminedCommunity
+,communityController.sendCommunity)
+// remove admins
+router.patch('/admins/remove',auth.verifyToken,communityMiddleware.getCommunity,
+auth.verifyCommunityManager,userMiddleware.getAdmins,communityMiddleware.removeAdmins
+,userModelSideEffectHandler.removeAdmins,
+communityController.sendCommunity)
+// switch manager
+router.patch('/manager',auth.verifyToken,auth.verifyCommunityManager
+,userMiddleware.getNewManager
+,communityMiddleware.switchManager,
+userModelSideEffectHandler.updateManagersState,
+communityMiddleware.checkIfManagerIsAdmin,
+userModelSideEffectHandler.removeAdmins,
+communityMiddleware.removeAdmins,communityController.sendCommunity)
+// new new new
+// add a post
+router.post('/posts',auth.verifyToken,communityMiddleware.getCommunity,postMiddleware.createPost,communityMiddleware.addPost,userModelSideEffectHandler.addPostToPublisherPosts,postController.sendPost)
+// approve post
+// remove post only with roles
+router.delete('/posts',auth.verifyToken,auth.verifyCommunityRole,communityMiddleware.getCommunity,postMiddleware.getPost,postMiddleware.getPostsList,postModelSideEffectHandler.removeCommunity,communityMiddleware.removePost,communityController.sendCommunity)
+// join community
+router.post('/members',auth.verifyToken,communityMiddleware.getCommunity,communityMiddleware.verifyNoRole,communityMiddleware.verifyCommunityPublic,communityMiddleware.addMember,communityController.sendCommunity)
+// approve post
+router.patch('/posts/approve',auth.verifyToken,auth.verifyCommunityRole,postMiddleware.getPost,communityMiddleware.approvePost,communityController.sendCommunity)
+// ask to join 
+router.post('/members/join',auth.verifyToken,communityMiddleware.getCommunity,communityMiddleware.verifyNoRole,communityMiddleware.addToWaitList,userModelSideEffectHandler.requestCommunityMembership,communityController.sendCommunity)
+// remove request by user
+router.delete('/members/join',auth.verifyToken,communityMiddleware.getCommunity,communityMiddleware.verifyNoRole,communityMiddleware.removeFromWaitList,userModelSideEffectHandler.removeCommunity,communityController.sendCommunity)
+// admin or manager remove request join
+router.delete('/members/role/join',auth.verifyToken,auth.verifyCommunityRole,communityMiddleware.removeFromWaitList,userModelSideEffectHandler.removeCommunity,communityController.sendCommunity)
+// approve memeber 
+router.post('/members/role/join',auth.verifyToken,auth.verifyCommunityRole,userMiddleware.getJoiner,userMiddleware.verifyJoinerNoRole,userModelSideEffectHandler.approvedCommunity,communityMiddleware.addMember,communityMiddleware.removeFromWaitList,communityController.sendCommunity)
+// remove member
+// remove by admins only members
+router.delete('/members/role',auth.verifyToken,auth.verifyCommunityRole,userMiddleware.getJoiner,userMiddleware.verifyJoinerNoRole,userModelSideEffectHandler.removeCommunity,communityMiddleware.removeMember,communityController.sendCommunity)
+// remove member by the same member used by useres with no role
+router.delete('/members',auth.verifyToken,communityMiddleware.getCommunity,communityMiddleware.verifyMember,communityMiddleware.verifyNoRole,communityMiddleware.removeMember,userModelSideEffectHandler.removeCommunity,communityController.sendCommunity)
+// admin resign
+router,delete('/admin',auth.verifyToken,communityMiddleware.getCommunity,auth.verifyCommunityAdmin,communityMiddleware.removeAdmin,userModelSideEffectHandler.removeAdmin,communityController.sendCommunity)
+// change commnity params
+router.patch('/manager/publicity',auth.verifyToken,auth.verifyCommunityManager,communityMiddleware.getCommunity,communityMiddleware.convertPublicity,communityController.sendCommunity)
+router.patch('/manager/post-approval',auth.verifyToken,auth.verifyCommunityManager,communityMiddleware.getCommunity,communityMiddleware.convertPostApproval,communityController.sendCommunity)
+router.get('/image/:imageName',communityMiddleware.getCommunity,communityController.getImage)
+router.delete('/image/:imageName',auth.verifyToken,auth.verifyCommunityManager,communityMiddleware.getCommunity,communityMiddleware.deleteImage,communityController.sendCommunity)
+router.patch('/image',auth.verifyToken,auth.verifyCommunityManager,communityMiddleware.getCommunity,communityMiddleware.saveImage,communityController.sendCommunityCoverImageName)
+router.delete('/',auth.verifyToken,auth.verifyCommunityManager,communityMiddleware.getCommunity,
+// delete user
+userMiddleware.getAdmins,userModelSideEffectHandler.removeAdmins,
+userModelSideEffectHandler.removeManagedCommunity,userModelSideEffectHandler.removeMembers
+,communityMiddleware.deleteImage,
+communityController.deleteCommunity)
+// block/unblock users only by managers
+router.patch('/block',auth.verifyToken,auth.verifyCommunityManager,userMiddleware.getBlockedUser,communityMiddleware.blockUser,communityController.sendCommunity)
+router.get('/check-name',auth.verifyToken,communityController.checkCommunityExists)
+module.exports=router
+--- END: routes/communityRoute.js ---
+
+--- FILE: routes/postsRoute.js ---
+const express=require('express')
+const multer = require('multer');
+const auth = require('../middleware/authentication.js');
+const postMiddleware=require('../middleware/postMiddleware.js')
+const postModelSideEffectHandler=require('../middleware/postModelSideEffecthandler.js')
+const commentMiddleware=require('../middleware/commentMiddleware.js')
+const userModelSideEffectHandler=require('../middleware/userModelSideEffectHandler.js');
+const postController = require('../controllers/postsRoute.js');
+const commentModelSideEffectHandler = require('../middleware/commentModelSideEffectHandler.js');
+const communityMiddleware = require('../middleware/communityMiddleware.js');
+const router=express.Router()
+// get post
+router.get('/',postController.getPost)
+//get user posts
+router.get('/get-user-posts/:userId',postController.sendUserPosts)
+// when a post is created 
+// verify token
+//check if its shared or not 
+// create post and handle side effect on user (add post to user posts)
+// 
+//if shared handle side effect on original post(add poster id to shares list on original post) and user side effect
+// eventually return the post
+router.post('/',auth.verifyToken,communityMiddleware.getCommunity,postMiddleware.validateShare,
+postMiddleware.createPost,
+//check if post was shared then add publisher id to og post shares
+postModelSideEffectHandler.addPosterIdToOriginalPostShares,
+userModelSideEffectHandler.addPostToPublisherPosts,
+communityMiddleware.addPost,postMiddleware.classifyPost,
+postMiddleware.updateSeq,postController.sendPost)
+
+// update post 
+// find post and check client is the author
+// update post
+// send post
+router.patch('/',auth.verifyToken,postMiddleware.verifyPostAuthor,
+postMiddleware.updatePostDescribtion,postController.sendPost)
+// like a post 
+// update likes 
+// handle user likes update side effect
+router.patch('/like',auth.verifyToken,postMiddleware.getPost,postMiddleware.getPostPublisher,postMiddleware.updateLikes,userModelSideEffectHandler.updateLikes,postController.sendPost)
+router.patch('/dislike',auth.verifyToken,postMiddleware.getPost,postMiddleware.getPostPublisher,postMiddleware.updateDisikes,postController.sendPost)
+
+// delet posts
+// get the post
+// remove the post
+// get comments as comments list
+// delete comments
+// remove comments from users
+// remove liked comments from user 
+// notify shared posts
+router.delete('/',auth.verifyToken,
+// input is postId output is the verified post 
+postMiddleware.verifyPostAuthor,
+postMiddleware.getPostsList,
+communityMiddleware.removePostsList,
+// input is post output is commentList
+postMiddleware.getComments,
+// input is post output is commentsList
+commentMiddleware.deleteComments,
+userModelSideEffectHandler.removeLikes,
+userModelSideEffectHandler.removeComments,
+userModelSideEffectHandler.removePosts,
+userModelSideEffectHandler.removeLikedPosts,
+postModelSideEffectHandler.removePostsFromOgShares,
+postModelSideEffectHandler.removePostsFromShares,
+postModelSideEffectHandler.deleteFiles,
+postMiddleware.deletePosts,
+postController.sendPost)
+
+
+// get posts comments
+router.get('/comments',auth.verifyToken,postController.getPostComments)
+
+
+
+
+
+
+
+
+
+router.get('/likes',auth.verifyToken,postController.getReactions)
+// router.delete('/',auth.verifyToken,post.deletePost )
+// //react to a post like or share
+// router.post('/comments',auth.verifyToken,post.createComment)
+// router.patch('/',auth.verifyToken,post.postReaction)
+// router.patch('/comments',auth.verifyToken,post.commentReaction)
+// router.delete('/comments',auth.verifyToken,post.deleteComment)
+// router.get('/shares',auth.verifyToken,post.getShares)
+// for files
+module.exports=router
+--- END: routes/postsRoute.js ---
+
+--- FILE: routes/rootRoute.js ---
+const express = require('express')
+const User=require('../models/userSchema.js')
+const Community=require('../models/communitySchema.js')
+const auth=require('../middleware/authentication.js')
+const userController=require('../controllers/userRoute')
+const postController=require('../controllers/postsRoute.js')
+const communitySchema = require('../models/communitySchema.js')
+const Notification=require('../controllers/notificationRoute.js')
+const axios = require('axios');
+const interestsMiddleWare = require('../middleware/interestsMiddleware.js')
+const router=express.Router()
+// will get posts after the latest post user has got 
+// if user is fresh then send latest posts
+router.get('/classify-dialog',auth.verifyToken,async(req,res)=>{
+    try{
+
+        const {data}=await axios.get(`http://127.0.0.1:5000/api/ai/dialog?dialog=${req.query.dialog}`)
+        console.log(data)
+        return res.json({success:true,classification:data})
+    }
+    catch(err){
+        console.log(err)
+        return res.json({success:false,err:err.message})
+    }
+})
+router.get('/get-posts',auth.verifyToken,interestsMiddleWare.calcInterests,postController.sendPosts)
+router.get('/get-users',auth.verifyToken,userController.getUsers)
+router.get('/post-file/:fileName',postController.getFile)
+router.get('/user-cover-image/:imageName',userController.getCoverImage)
+router.get('/user-profile-image/:imageName',userController.getProfileImage)
+router.get('/users-communities',async(req,res)=>{
+    try{
+    let users=await User.find()
+    users=users.map(user=>{
+        return{
+
+            firstName:user.firstName,
+            lastName:user.lastName,
+            id:user.id,
+            profileImage:user.profileImage
+        }
+    })
+        let communities=await Community.find()
+        communities= communities.map(community=>{
+        return {
+        _id:community.id,
+        communityName:community.communityName}
+    })
+    console.log(communities)
+    return res.json({success:true,communities,users})
+    }
+    catch(err)
+{
+    console.log(err)
+    return res.json({success:false,err:err.message})
+}
+})
+router.get('/search',async(req,res)=>{
+try
+{
+    let {searchQuery}=req.query
+    if(!searchQuery)
+    return res.json({success:false,err:'no query was send'})
+    let results={
+        users:[],
+        communities:[]
+    }
+    let users=await User.find()
+    users=users.filter(user=>{
+        if(user.firstName.includes(searchQuery))
+            return true
+            if(user.lastName.includes(searchQuery))
+            return true
+
+    })
+    users=users.map(user=>{
+        return ({
+            firstName:user.firstName,
+            lastName:user.lastName,
+            imageName:user.profileImage.imageName,
+            id:user.id
+            
+        })
+    })
+    results.users=[... users]
+    // find communities
+    let communities=await Community.find()
+    communities=communities.filter(community=>{
+        if(community.communityName.includes(searchQuery))
+            return true
+    })
+    console.log(communities)
+    communities=communities.map(community=>({communityName:community.communityName,_id:community.id}))
+    results.communities=[... communities]
+    console.log(results)
+    return res.json({success:true,results})
+}
+catch(err){
+    console.log(err)
+    return err.message
+}
+} )
+router.get('/followers',auth.verifyToken,userController.getFollowers)
+router.get('/followes',auth.verifyToken,userController.getFollowes)
+router.post('/classify-text',auth.verifyToken,async (req,res)=>{
+    try{
+   const category= await axios.get(`http://127.0.0.1:5000/api/ai/messages`,{messages:req.body.messages})
+   await interestsMiddleWare.updateScore(category,'messages',req.user)
+   return res.json({success:true})
+    }
+    catch(err){
+        console.log(err)
+        return res.json({success:false,err:err.message})
+    }
+})
+module.exports=router
+--- END: routes/rootRoute.js ---
+
+--- FILE: routes/userRoute.js ---
+const userController = require('../controllers/userRoute.js')
+const authentication=require('../middleware/authentication.js')
+const userModelSideEffect=require('../middleware/userModelSideEffectHandler.js')
+const userMiddleware=require('../middleware/userMiddleware')
+const postModelSideEffectHandler=require('../middleware/postModelSideEffecthandler.js')
+const postMiddleware=require('../middleware/postMiddleware.js')
+const commentMiddleware=require('../middleware/commentMiddleware.js')
+const express = require('express')
+const Notification=require('../controllers/notificationRoute.js')
+const communityController = require('../controllers/communityRoute.js')
+const communityMiddleware = require('../middleware/communityMiddleware.js')
+const commentModelSideEffectHandler=require('../middleware/commentModelSideEffectHandler.js')
+const router=express.Router()
+router.get('/notifications',authentication.verifyToken,Notification.getNotifications)
+router.patch('/',authentication.verifyToken,userController.patchUser)
+router.get('/',authentication.verifyToken,userController.sendUser)
+router.get('/login',authentication.verifyUser,authentication.generateToken,userController.sendUser)
+router.post('/signup',authentication.checkEmailExists,userMiddleware.createUser,authentication.generateToken,userController.sendUser)
+
+router.patch('/profile-image',authentication.verifyToken,userMiddleware.updateProfileImage,userMiddleware.saveUserImage,userController.sendImage)
+
+router.patch('/cover-image',authentication.verifyToken,userMiddleware.updateCoverImage,userMiddleware.saveUserImage,userController.sendImage)
+
+router.patch('/followers',
+authentication.verifyToken,
+// input req.body.addedUser Id
+userMiddleware.getUser,
+// check if followes and delete
+userMiddleware.checkIfFollowes
+// input is added user
+,userModelSideEffect.addFollow
+// input is activity
+// sends follow
+,userController.sendFollow)
+router.delete('/',authentication.verifyUser,
+userMiddleware.destructUser,)
+router.get('/:userId',userController.getUser)
+router.delete('/',authentication.verifyToken,
+communityMiddleware.verifyNoRole
+,postMiddleware.getPosts
+,commentMiddleware.getPostsListsCommnetsList,
+userModelSideEffect.deleteFromFriends
+,postMiddleware.deletePosts,
+commentMiddleware.deleteComments,
+userModelSideEffect.removeLikes
+,userModelSideEffect.removeLikedPosts,
+postModelSideEffectHandler.removePostsFromShares,
+postModelSideEffectHandler.removePostsFromOgShares,
+postModelSideEffectHandler.deleteFiles,
+userController.deleteUser
+)
+// block/unblock a user
+router.patch('/block',authentication.verifyToken,userMiddleware.getBlockedUser,userModelSideEffect.blockUser,userController.getUser)
+// block/unblock a community
+router.patch('/block/community',authentication.verifyToken,communityMiddleware.getCommunity,communityMiddleware.verifyNoRole,userModelSideEffect.blockCommunity,userController.getUser)
+
+module.exports=router
+--- END: routes/userRoute.js ---
+
+--- FILE: a.js ---
+function calcNewLast(p){
+    const currentTime=new Date()
+    const diffTime = Math.abs(currentTime - p.date);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const newScore=p.score-2*diffDays
+    const newLast={score:newScore,date:currentTime}
+    return newLast
+    }
+function calcPoint(p2,p1,xi){
+    const {x1,y1}=p1
+    const {x2,y2}=p2
+    if(xi>x2)
+        {
+            console.log('xi is bigger than x2 error')
+            return 
+        }
+        
+        const deltaI=x2-xi
+        const delta=x2-x1
+        const diffX=(delta-deltaI)/delta
+        console.log(diffX)
+        const deltaY=y2-y1   
+        console.log((delta/deltaI)*deltaY+y1)
+        const yi=deltaY*diffX+y1
+
+        const pi={xi,yi}
+    return pi
+}
+const p1={x1:0,y1:3}
+const p2={x2:3,y2:-1}
+const xi=3
+const p={score:5,date:new Date('2022-06-01')}
+console.log(calcPoint(p2,p1,xi))
+--- END: a.js ---
+
+--- FILE: package.json ---
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "start": "nodemon server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.4.0",
+    "bcrypt": "^5.1.0",
+    "body-parser": "^1.20.1",
+    "cors": "^2.8.5",
+    "express": "^4.18.1",
+    "interpolate": "^0.1.0",
+    "jsonwebtoken": "^8.5.1",
+    "mathjs": "^11.8.0",
+    "mongoose": "^6.10.2",
+    "multer": "^1.4.5-lts.1",
+    "numeric": "^1.2.6",
+    "socket.io": "^4.6.1",
+    "template": "^0.17.5"
+  },
+  "devDependencies": {
+    "dotenv": "^16.0.2",
+    "nodemon": "^2.0.19"
+  }
+}
+--- END: package.json ---
+
+--- FILE: server.js ---
+const express = require('express')
+const multer = require('multer');
+const upload=multer()
+require('dotenv').config()
+const cors = require('cors')
+const Comment=require('./models/commentSchema.js')
+const postsRouter = require('./routes/postsRoute.js');
+const userRouter = require('./routes/userRoute.js');
+const rootRouter=require('./routes/rootRoute.js')
+const mongoose = require('mongoose');
+const User=require('./models/userSchema.js')
+const communityRouter=require('./routes/communityRoute.js')
+const commentsRouter=require('./routes/commentsRoute.js');
+const app=express()
+mongoose.connect(process.env.DATABASE_URL,()=>console.log('connected to database'),err=>console.log(err))
+app.use(cors({
+    origin:'*',
+    credentials:true,
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+}))
+
+  app.use(express.json())
+app.use(express.urlencoded({extended:true}))
+app.use(upload.any())
+app.use('/api',rootRouter)
+app.use('/api/user',userRouter)
+app.use('/api/posts',postsRouter)
+app.use('/api/comments',commentsRouter)
+app.use('/api/community',communityRouter)
+
+app.listen(1000,()=>console.log('http://localhost:1000'))
+--- END: server.js ---
