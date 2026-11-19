@@ -160,4 +160,32 @@ function cover(rng,category){
     }
     return svg(out,1500,500)
 }
-module.exports={postImage,avatar,cover}
+
+// [NEW] the same picture from the same file name. A seed picture is named "<16-letter code>-<kind>.svg"
+// (kind: avatar, cover, cover-<topic> or <topic>-<number>); the code starts the random numbers of the drawing.
+// why: a free host (Render) forgets the files on its disk when it sleeps or redeploys, while the database
+// (Atlas) still has their names. The server then draws a missing picture again from its name alone,
+// exactly the same, instead of failing with ENOENT (see utils/sendUpload.js).
+const TOPICS='tech|sport|business|politics|entertainment'
+const NAME=new RegExp(`^([0-9a-f]{16})-(avatar|cover|cover-(${TOPICS})|(${TOPICS})-\\d+)\\.svg$`)
+function rngFrom(code){
+    let seed=(parseInt(code.slice(0,8),16)^parseInt(code.slice(8,16),16))|0
+    return ()=>{
+        seed=seed+0x6D2B79F5|0
+        let t=Math.imul(seed^seed>>>15,1|seed)
+        t=t+Math.imul(t^t>>>7,61|t)^t
+        return ((t^t>>>14)>>>0)/4294967296
+    }
+}
+function fromName(fileName){
+    const match=NAME.exec(String(fileName))
+    if(!match)
+        return null
+    const [,code,kind,coverTopic,postTopic]=match
+    const rng=rngFrom(code)
+    if(kind==='avatar') return avatar(rng)
+    if(kind==='cover') return cover(rng)
+    if(coverTopic) return cover(rng,coverTopic)
+    return postImage(postTopic,rng)
+}
+module.exports={postImage,avatar,cover,fromName}

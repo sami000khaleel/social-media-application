@@ -16,6 +16,8 @@ const commentsMiddleware = require('../middleware/commentMiddleware.js');
 // const { ClickAwayListener } = require('@mui/material');
 // [NEW] POST_POPULATE: what every post sent to the client carries (publisher, shared post, community name)
 const {POST_POPULATE,USER_CARD,isId,isPlainFileName}=require('../utils/shape.js')
+// [NEW] sends uploaded files; draws a missing demo picture again (see utils/sendUpload.js)
+const sendUpload=require('../utils/sendUpload.js')
 const interestsMiddleWare = require('../middleware/interestsMiddleware.js');
 // [NEW] each page of the feed is saved with its calculation, and announced over Socket.IO
 const FeedLog=require('../models/feedLogSchema.js')
@@ -221,7 +223,9 @@ static async sendUserPosts(req,res){
             if(!isId(req.query.postId)||!isPlainFileName(req.params.fileName))
             return res.status(400).json({success:false,err:'invalid file'})
             const filePath=path.join(__dirname,'..','uploaded-files','posts-files',req.query.postId,req.params.fileName)
-            return res.sendFile(filePath)
+            // [CHANGED] a missing demo picture is drawn again from its name instead of failing with ENOENT
+            // return res.sendFile(filePath)
+            return sendUpload(res,filePath)
         }
         catch(err){
             return res.json({success:false,err:err.message})

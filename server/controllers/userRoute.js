@@ -11,6 +11,8 @@ const jwt = require('jsonwebtoken');
 const Notification=require('../models/notificationSchema.js')
 // [NEW] helpers: publicProfile hides private fields, isId / isPlainFileName check values used in file paths
 const {publicProfile,isId,isPlainFileName}=require('../utils/shape.js')
+// [NEW] sends uploaded files; draws a missing demo picture again (see utils/sendUpload.js)
+const sendUpload=require('../utils/sendUpload.js')
 require('dotenv').config()
 // [SECURITY] the only fields a user may change through PATCH /api/user
 const EDITABLE_FIELDS=['firstName','lastName','middleName','age','job','email','phoneNumber']
@@ -147,7 +149,9 @@ class user{
       if(!isId(req.query.userId)||!isPlainFileName(req.params.imageName))
       return res.status(400).json({success:false,err:'invalid image'})
       const path=join(__dirname,'..','uploaded-files','users-images',req.query.userId,`user-cover-image`,req.params.imageName)
-      return res.sendFile(path)
+      // [CHANGED] a missing demo picture is drawn again from its name instead of failing with ENOENT
+      // return res.sendFile(path)
+      return sendUpload(res,path)
     }
     catch(err)
     {
@@ -162,7 +166,9 @@ class user{
       if(!isId(req.query.userId)||!isPlainFileName(req.params.imageName))
       return res.status(400).json({success:false,err:'invalid image'})
       const path=join(__dirname,'..','uploaded-files','users-images',req.query.userId,`user-profile-image`,req.params.imageName)
-      return res.sendFile(path)
+      // [CHANGED] a missing demo picture is drawn again from its name instead of failing with ENOENT
+      // return res.sendFile(path)
+      return sendUpload(res,path)
     }
     catch(err)
     {

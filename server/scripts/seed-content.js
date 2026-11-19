@@ -143,16 +143,26 @@ const POSTS={
 }
 
 const COMMENTS={
-    tech:['Had the same problem last month, this is the fix.','Stealing this for our next retro.','Which tool did you use to measure that?','This is the most relatable thing I have read all week.','Can you share the config?','We did the opposite and regretted it.','Saving this.','Boring fixes are the best fixes.'],
-    sport:['Congrats, that is a great time!','Rest days are underrated, fully agree.','What shoes are you running in?','See you at the next one.','My legs hurt just reading this.','That first goal feeling never gets old.','Great session.','Count me in next week.'],
-    business:['Raising prices is always scarier than it should be.','Great point about cash flow.','How long did it take before you saw the effect?','This matches what we saw too.','Would love to hear more about the numbers.','Word of mouth beats every ad.','Needed to read this today.','Solid advice.'],
-    politics:['Thanks for the summary, I had no idea about the deadline.','Going to the session on Thursday.','I see it differently, but this is a fair way to put it.','Local elections really are where it matters.','Where can I read the full proposal?','More people should read the actual text.','Good reminder.','Signed.'],
-    entertainment:['Adding this to my list.','That album is a classic.','No spoilers please, I am two episodes behind.','Where was the gig?','I laughed at the last line.','Now I want to watch it again.','Great find!','Send the playlist.'],
+    tech:['Had the same problem last month, this is the fix.','Stealing this for our next retro.','Which tool did you use to measure that?','This is the most relatable thing I have read all week.','Can you share the config?','We did the opposite and regretted it.','Saving this.','Boring fixes are the best fixes.',
+        // [NEW] more comments, so the same few lines do not repeat under every post
+        'How long did the migration take you?','Our team needs to see this.','Bookmarked for Monday.','I learned this the hard way too.','Is there a write-up somewhere?','Simple and it works. Love it.','This would have saved me a weekend.','Nice, clean solution.'],
+    sport:['Congrats, that is a great time!','Rest days are underrated, fully agree.','What shoes are you running in?','See you at the next one.','My legs hurt just reading this.','That first goal feeling never gets old.','Great session.','Count me in next week.',
+        'Which route was that?','Strong work, keep it going.','How do you stay motivated in this weather?','The team spirit is the best part.','That is a proper effort.','I need to try this.','Recovery snacks are the real reward.','Respect for showing up.'],
+    business:['Raising prices is always scarier than it should be.','Great point about cash flow.','How long did it take before you saw the effect?','This matches what we saw too.','Would love to hear more about the numbers.','Word of mouth beats every ad.','Needed to read this today.','Solid advice.',
+        'Sending this to my co-founder.','Clear and practical, thanks.','What would you do differently next time?','Small steps, big difference.','This is how you build trust with customers.','Good luck with the launch!','Did your customers notice?','Writing this down.'],
+    politics:['Thanks for the summary, I had no idea about the deadline.','Going to the session on Thursday.','I see it differently, but this is a fair way to put it.','Local elections really are where it matters.','Where can I read the full proposal?','More people should read the actual text.','Good reminder.','Signed.',
+        'Helpful, thank you for the sources.','When is the vote?','This affects more people than they think.','Shared it with my neighbours.','Calm and clear, I like it.','I will write to my representative.','Good to see people taking part.','Is there a recording of the session?'],
+    entertainment:['Adding this to my list.','That album is a classic.','No spoilers please, I am two episodes behind.','Where was the gig?','I laughed at the last line.','Now I want to watch it again.','Great find!','Send the playlist.',
+        'The soundtrack alone is worth it.','Watched it last night because of you.','Underrated pick.','Who is the director?','I have that on vinyl.','Perfect for a rainy weekend.','The ending got me.','More recommendations like this please.'],
 }
 const REPLIES=['Thanks!','Good question, I will write a follow-up.','Exactly my experience.','Ha, true.','Agreed.','I will send you the details.','That makes two of us.','Fair point.','Appreciate it.',
-    'Not sure I agree, but I see where you are coming from.','Same here!','Can you say more?','Haha, guilty.','We should talk about this over coffee.','You are not wrong.']
+    'Not sure I agree, but I see where you are coming from.','Same here!','Can you say more?','Haha, guilty.','We should talk about this over coffee.','You are not wrong.',
+    // [NEW] more replies
+    'Good to know.','Thanks for explaining.','I had not thought of that.','Let me know how it goes.','Spot on.','I will try that.','Sounds good to me.','Interesting angle.','Same thought here.','Glad it helped.']
 // [NEW] polite disagreement, so not every comment is a cheer
-const DISAGREE=['I see it differently, to be honest.','Not convinced. What would change your mind?','Interesting, but this did not work for us at all.','Respectfully, I think this misses the bigger picture.','Hmm, I had the opposite experience.','Fair, but the numbers tell another story.']
+const DISAGREE=['I see it differently, to be honest.','Not convinced. What would change your mind?','Interesting, but this did not work for us at all.','Respectfully, I think this misses the bigger picture.','Hmm, I had the opposite experience.','Fair, but the numbers tell another story.',
+    // [NEW] more ways to disagree politely
+    'I am not sure that holds up everywhere.','I would push back a little on this.','That is one side of it.','Not my experience, but thanks for sharing.','I think the opposite is true, honestly.','Could be, but I need more than one example.']
 const SHARE_NOTES=['Worth a read.','This.','Could not have said it better.','Sharing because more people should see it.','Saving this for later.','Exactly what I needed today.','Agree with every word.','',''] 
 
 const COMMUNITIES=[

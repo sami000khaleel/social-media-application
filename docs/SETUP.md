@@ -156,7 +156,14 @@ Put the address on your CV, LinkedIn and GitHub profile, and in the live demo li
 
 ## 4. Demo data
 
-`npm run seed` creates 28 made-up people with German names (emails end in `@example.com`), about 320 posts with generated pictures, about 690 comments, 6 communities, about 150 chat messages, about 1,400 feed pages and about 4,000 tracked reactions spread over the last 5 weeks, all with realistic timestamps. The reactions are varied like on a real network: a few posts take off while most get a handful of likes, some posts split opinions (dislikes and polite disagreement in the comments), people take likes back, like and dislike comments, share, and join and leave communities. It refuses to run on a database that already has data. `npm run seed:reset` **deletes everything** first.
+`npm run seed` creates 28 made-up people with German names (emails end in `@example.com`), about 260 posts with generated pictures, about 780 comments, 6 communities, about 100 chat messages, about 1,470 feed pages and about 6,800 tracked actions spread over the last 5 weeks, all with realistic timestamps. The interactions are spread 100% evenly:
+
+- every post gets exactly 6 likes, 2 comments, 1 reply and 1 dislike, so every topic gets exactly the same too
+- every comment gets exactly 2 reactions, everybody has 7 followers, and every topic has 6 shares
+- each topic gets its posts evenly over the five weeks
+- people react to every topic. The four people on the sign-in page still have a favourite topic in front (about half of what they do), so their feed has a story to show.
+
+It refuses to run on a database that already has data. `npm run seed:reset` **deletes everything** first.
 
 Every account and password is written to `server/SEED-ACCOUNTS.md`. The passwords are the same on every run. Six accounts each show one behaviour of the algorithm:
 

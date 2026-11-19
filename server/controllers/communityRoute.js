@@ -9,6 +9,8 @@ const Community = require('../models/communitySchema.js');
 const interestsMiddleWare = require('../middleware/interestsMiddleware.js')
 // [NEW] shared helpers (what a populated post / a user card contains, checks for file paths)
 const {POST_POPULATE,USER_CARD,isId,isPlainFileName}=require('../utils/shape.js')
+// [NEW] sends uploaded files; draws a missing demo picture again (see utils/sendUpload.js)
+const sendUpload=require('../utils/sendUpload.js')
 // [NEW] the people of a community are populated with name and picture only
 // why: populate('members.memberId') sent every member's whole account (email, phone, password hash)
 const COMMUNITY_PEOPLE=[
@@ -161,7 +163,9 @@ class communityController{
             if(!isId(req.query.communityId)||!isPlainFileName(imageName))
                 return res.status(400).json({success:false,err:'invalid image'})
             const imagePath=resolve(__dirname,'..','uploaded-files','communities-images',req.query.communityId,imageName)
-            return res.sendFile(imagePath)
+            // [CHANGED] a missing demo picture is drawn again from its name instead of failing with ENOENT
+            // return res.sendFile(imagePath)
+            return sendUpload(res,imagePath)
             }   
         catch(err){
             console.log(err)

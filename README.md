@@ -95,7 +95,7 @@ The code is in [`server/middleware/interestsMiddleware.js`](server/middleware/in
   - Writing is turned off for demo people on the server, not only in the interface.
   - The data reloads every 6 hours, and the sign-in page waits ("Getting the made-up people ready") instead of failing.
   - A made-up person's history moves to the moment of sign-in, so "5 minutes ago" stays 5 minutes ago.
-- **Realistic seed data**: 28 made-up people, about 320 posts with generated pictures, 690 comments and 1,400 feed pages over 5 weeks, with varied reactions (a few posts take off, some split opinions, likes taken back, comments liked and disliked), the same on every run.
+- **Even seed data**: 28 made-up people, about 260 posts with generated pictures, 780 comments and 1,470 feed pages over 5 weeks. Every post gets exactly the same reactions (6 likes, 2 comments, 1 reply, 1 dislike), every comment 2 reactions, everybody 7 followers, and the pictures are drawn again from their names when a free host forgets its files.
 - **One deployable service**: Express serves the React build, with a Render blueprint (`render.yaml`). A second blueprint deploys the front end and the API separately.
 
 ## Project structure
