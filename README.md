@@ -6,7 +6,7 @@
 
 Posts, comments, communities and live chat, with a recommendation feed that follows what you are into right now, and a page that shows you exactly why you see each post.
 
-[**▶ Try the live demo**][live] &nbsp;·&nbsp; one click, no sign-up
+[**▶ Try the live demo**][https://upswing-ulju.onrender.com/] &nbsp;·&nbsp; one click, no sign-up
 
 ![Node.js](https://img.shields.io/badge/Node.js-20-339933?logo=nodedotjs&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)
