@@ -21,7 +21,7 @@ Posts, comments, communities and live chat, with a recommendation feed that foll
 
 ## Try it in 30 seconds
 
-1. Open the [**live demo**][live].
+1. Open the [**live demo**][https://upswing-ulju.onrender.com/].
 2. Under the sign-in form, click **Lena Hoffmann**. No account, no password.
 3. Click **How it works** above her feed, then like 3 posts in the **Try it** box and watch her next posts change.
 
