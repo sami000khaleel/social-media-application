@@ -28,7 +28,7 @@ const COPY_HOURS=3
 let preparing=false
 const TOPICS=['business','tech','entertainment','sport','politics']
 // the four made-up people the sign-in page offers with demo mode off (client/src/seedAccounts.js)
-const SEED_EMAILS=['lena.hoffmann@example.com','omar.haddad@example.com','sofia.marin@example.com','jonas.weber@example.com']
+const SEED_EMAILS=['lena.hoffmann@example.com','tobias.krause@example.com','sophie.wagner@example.com','jonas.weber@example.com']
 
 // [NEW] moves a made-up person's activity to now. The seed writes everything relative to the moment it ran
 // ("liked 5 minutes ago", "away for 11 days"), and that moment is kept in demoTimeAt. Hours later those likes
@@ -179,8 +179,12 @@ class demoMode{
                 return res.status(404).json({success:false,err:'the demo is turned off'})
             if(preparing)
                 return res.status(503).json({success:false,preparing:true,err:'The demo is getting ready. One moment please.'})
-            const {userId}=req.body
-            const original=isId(String(userId))?await User.findById(userId):null
+            // [CHANGED] by id, or by the made-up email: the sign-in page can then show its buttons (and take a click)
+            // before the server has answered which demo people there are, which matters when a free server wakes up
+            const {userId,email}=req.body
+            const original=isId(String(userId))?await User.findById(userId)
+                :typeof email==='string'&&email.endsWith('@example.com')?await User.findOne({email:email.toLowerCase(),demoCloneOf:{$exists:false}})
+                :null
             if(!original||!original.demo||!original.demoStory||original.demoCloneOf)
                 return res.status(400).json({success:false,err:'this is not a demo account'})
             removeOldCopies().catch(err=>console.log(err))

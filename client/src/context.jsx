@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
     setUser,
     refresh: () => api.me().then((fresh) => { setUser(fresh); return fresh }),
     async signIn(email, password) { const data = await api.login(email, password); token.set(data.token); setUser(data.user) },
-    async signInDemo(userId) { const data = await api.demoLogin(userId); token.set(data.token); setUser(data.user) },
+    async signInDemo(who) { const data = await api.demoLogin(who); token.set(data.token); setUser(data.user) },
     // the demo accounts (private copies of made-up people) can react but not write (the server refuses it too)
     isDemo: Boolean(user?.demo),
     async signUp(fields) { const data = await api.signup(fields); token.set(data.token); setUser(data.user) },

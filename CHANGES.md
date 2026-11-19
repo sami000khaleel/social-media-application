@@ -73,7 +73,7 @@ Everything is in `middleware/demoMode.js` and does nothing while `DEMO_MODE` is 
 - New user field `demoTimeAt`: the moment a made-up person's data is "as of" (the seed sets it). `demoMode.freshen` moves every score point and feed page forward by the time since then and sets it to now. It runs for the private copy on a one-click demo sign-in, and on a password sign-in of a made-up person when demo mode is off. Real accounts are never moved.
 
 ## One-click sign-in for the seeded people (demo mode off)
-- With demo mode off, the sign-in page always shows four made-up people under the form (`client/src/seedAccounts.js`: Lena, Omar, Sofia, Jonas with their made-up passwords). One click signs in with the password and opens "How my feed works". `GET /api/demo` finds them by email and adds their pictures; if the database has no seed, a click says to run `npm run seed`.
+- With demo mode off, the sign-in page always shows four made-up people under the form (`client/src/seedAccounts.js`: Lena, Tobias, Sophie, Jonas with their made-up passwords). One click signs in with the password and opens "How my feed works". `GET /api/demo` finds them by email and adds their pictures; if the database has no seed, a click says to run `npm run seed`.
 - The sign-in page fits on one screen without scrolling, from a 375 x 667 phone to a 1920 x 1080 screen, with and without demo mode.
 
 ## Sign-in page, Home strip and shorter explanations (front end)
@@ -83,3 +83,9 @@ Everything is in `middleware/demoMode.js` and does nothing while `DEMO_MODE` is 
 - The explanations are shorter and plainer: "Right now" instead of "This session", "grew" and "shrinking" instead of "climbed" and "falling", one short sentence per row.
 - Server: `GET /api/demo` finds the four people by their made-up email (also in a database seeded by an older version) and returns their email in demo mode too.
 - The explanation page is shorter: no big charts. "How it works" is one small diagram (three boxes with arrows), "Your topics" is one row per topic with a tiny 7-day line, and the maths and the page history are folded away (click to open). The two line charts, the day-by-day chart and the activity grid are gone.
+
+## New made-up data and a sign-in loader
+- `scripts/seed-content.js`: every made-up person has a German name now. The six people with a story keep their place in the list, so their passwords stay the same (Tobias Krause, Sophie Wagner and Anna Schneider take the places of the three renamed ones).
+- `scripts/seed.js`: more varied reactions. Every post has an appeal (most are ordinary, a few take off) and some split opinions; people without a story also care a little about other topics; there are dislikes, likes taken back, polite disagreeing comments, likes and dislikes on comments, more shares, and people leaving communities.
+- `middleware/demoMode.js`: the one-click demo sign-in also takes the made-up email, so the sign-in page shows its four people at once and can take a click before the server has answered.
+- Front end: a loader covers the wait while signing in (the person's picture in a turning ring, what is happening, and after a few seconds that a free server can take up to a minute to wake up).

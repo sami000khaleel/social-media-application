@@ -922,3 +922,35 @@ a.note:hover { background: var(--sunk); }
   .topic-row { grid-template-columns: minmax(118px, auto) minmax(0, 1fr) 36px; }
   .spark { width: 56px; }
 }
+
+/* ------------------------------------------------------------------ the loader while signing in
+   A free host can take a while for the first sign-in, so the wait gets its own calm screen: the person's
+   picture in a turning ring, one line that says what is happening, and ten posts lighting up in turn. */
+.signing { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: signing-in 0.25s ease both; }
+@keyframes signing-in { from { opacity: 0; } }
+.signing-card { width: min(360px, 100%); display: grid; justify-items: center; gap: 10px; padding: 30px 26px 26px; border-radius: 22px; background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line), 0 24px 60px -24px rgba(20, 23, 31, 0.45); text-align: center; animation: signing-card 0.35s cubic-bezier(.3,.7,.2,1) both; }
+@keyframes signing-card { from { transform: translateY(12px) scale(0.98); opacity: 0; } }
+.signing-avatar { position: relative; display: grid; place-items: center; width: 92px; height: 92px; margin-bottom: 4px; }
+.signing-ring { position: absolute; inset: 0; border-radius: 50%; padding: 4px;
+  background: conic-gradient(from var(--spin), var(--topic-tech), var(--topic-sport), var(--topic-politics), var(--topic-business), var(--topic-entertainment), var(--topic-tech));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  animation: spin-ring 1.6s linear infinite; }
+.signing-logo { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--sunk); }
+.signing-name { font-size: 1.125rem; letter-spacing: -0.01em; }
+.signing-line { min-height: 2.9em; color: var(--ink-2); font-size: 0.9375rem; line-height: 1.45; max-width: 30ch; animation: signing-line 0.4s ease both; }
+@keyframes signing-line { from { opacity: 0; transform: translateY(4px); } }
+.signing-tiles { display: flex; gap: 4px; margin-top: 2px; }
+.signing-tiles i { width: 16px; height: 20px; border-radius: 5px; background: var(--sunk); animation: signing-tile 2s ease-in-out infinite; animation-delay: calc(var(--i) * 120ms); }
+.signing-tiles i:nth-child(5n+1) { --c: var(--topic-tech); }
+.signing-tiles i:nth-child(5n+2) { --c: var(--topic-sport); }
+.signing-tiles i:nth-child(5n+3) { --c: var(--topic-business); }
+.signing-tiles i:nth-child(5n+4) { --c: var(--topic-politics); }
+.signing-tiles i:nth-child(5n) { --c: var(--topic-entertainment); }
+@keyframes signing-tile { 0%, 100% { background: var(--sunk); transform: none; } 30%, 50% { background: var(--c); transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) {
+  .signing-ring, .signing-tiles i { animation: none; }
+  .signing-tiles i { background: var(--c); }
+}

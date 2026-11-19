@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Icon from '../components/Icon.jsx'
-import { Avatar, Logo, Spinner } from '../components/ui.jsx'
+import { Avatar, Logo } from '../components/ui.jsx'
 import { useAuth, useTheme } from '../context.jsx'
 import { fullName } from '../lib.js'
 import { api } from '../api.js'
@@ -16,6 +16,36 @@ function FeedPicture() {
       <span className="star-row">{Array.from({ length: 10 }, (_, i) => <i key={i} />)}</span>
       <span className="star-row-name">Right now</span>
       <span className="star-row star-row-live">{Array.from({ length: 10 }, (_, i) => <i key={i} style={{ '--i': i }} />)}</span>
+    </div>
+  )
+}
+
+// The loader while signing in. On a free host the first sign-in can take a while (the server wakes up, the database
+// is far away), so it says what is happening, and after a few seconds that the wait is normal.
+function SigningIn({ person }) {
+  const [step, setStep] = useState(0)
+  useEffect(() => {
+    const timers = [2500, 7000, 22000].map((ms, i) => setTimeout(() => setStep(i + 1), ms))
+    return () => timers.forEach(clearTimeout)
+  }, [])
+  const name = person?.firstName
+  const lines = [
+    name ? `Signing you in as ${name}` : 'Signing you in',
+    name ? `Getting ${name}'s feed ready` : 'Getting your feed ready',
+    'The free server is waking up. This can take up to a minute.',
+    'Almost there. Thanks for waiting.',
+  ]
+  return (
+    <div className="signing" role="status" aria-live="polite">
+      <div className="signing-card">
+        <span className="signing-avatar">
+          <span className="signing-ring" aria-hidden="true" />
+          {person?.firstName ? <Avatar user={person} size={64} /> : <span className="signing-logo"><Logo size={40} word={false} /></span>}
+        </span>
+        {name && <strong className="signing-name">{fullName(person)}</strong>}
+        <p key={step} className="signing-line">{lines[step]}</p>
+        <span className="signing-tiles" aria-hidden="true">{Array.from({ length: 10 }, (_, i) => <i key={i} style={{ '--i': i }} />)}</span>
+      </div>
     </div>
   )
 }
@@ -37,6 +67,7 @@ export default function Auth({ mode }) {
   const [form, setForm] = useState({ firstName: '', lastName: '', age: '', email: '', password: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')                // '' or what is loading: 'form' or a person's email
+  const [signing, setSigning] = useState(null)        // who is being signed in (the loader shows while this is set)
   const [demo, setDemo] = useState(null)              // null while asking the server, then { enabled, preparing, accounts }
   const [waitingFor, setWaitingFor] = useState(null)  // the person clicked while the demo was still getting ready
   const [askAgain, setAskAgain] = useState(0)         // bumping this starts asking the server again
@@ -57,11 +88,12 @@ export default function Auth({ mode }) {
     return () => { live = false; clearTimeout(timer) }
   }, [askAgain])
 
-  const fail = (problem) => { setError(problem.message); setBusy('') }
+  const fail = (problem) => { setError(problem.message); setBusy(''); setSigning(null) }
   const submit = async (event) => {
     event.preventDefault()
     setError('')
     setBusy('form')
+    setSigning({})
     try {
       if (signup) await signUp({ ...form, age: Number(form.age) })
       else await signIn(form.email, form.password)
@@ -72,12 +104,22 @@ export default function Auth({ mode }) {
   const tryPerson = async (person) => {
     setError('')
     setBusy(person.email)
+    setSigning(person)
     try {
-      if (demo?.enabled) await signInDemo(person._id)       // demo mode: a private copy, no password
-      else await signIn(person.email, person.password)     // your own computer: the made-up password
+      if (demo?.enabled === false) await signIn(person.email, person.password)   // your own computer: the made-up password
+      else {
+        // demo mode, or not known yet because the server is still waking up: one click, no password (a private copy)
+        try { await signInDemo({ email: person.email }) }
+        catch (problem) {
+          if (problem.status !== 404) throw problem       // 404: this server has no demo mode, so use the password
+          await signIn(person.email, person.password)
+        }
+      }
       navigate('/', { replace: true })
     } catch (problem) {
       setBusy('')
+      // a 503 keeps the loader up: the click goes on by itself when the demo is ready
+      if (problem.status !== 503) setSigning(null)
       if (problem.status === 503) {
         // the server started loading fresh demo data a moment ago: wait, then carry on with the same person
         setWaitingFor(person)
@@ -90,11 +132,8 @@ export default function Auth({ mode }) {
   }
   // the four people: always shown with demo mode off (the server adds their pictures); with demo mode on, the ones
   // the server has (it gives the id the one-click sign-in needs)
-  const people = SEED_ACCOUNTS.map((s) => {
-    const found = (demo?.accounts || []).find((a) => a.email === s.email)
-    if (demo?.enabled) return found && { ...s, ...found, email: s.email }
-    return { ...s, ...found, email: s.email, password: s.password }
-  }).filter(Boolean)
+  // the four people show at once, before the server answers (it adds their pictures when it does)
+  const people = SEED_ACCOUNTS.map((s) => ({ ...s, ...(demo?.accounts || []).find((a) => a.email === s.email), email: s.email, password: s.password }))
   const preparing = Boolean(demo?.enabled && demo.preparing)
   // the demo is ready again: finish the click the visitor already made, so nobody has to click twice
   useEffect(() => {
@@ -146,14 +185,13 @@ export default function Auth({ mode }) {
           {!signup && (
             <div className="auth-people">
               <p className="auth-people-title"><strong>No account? Try it as a made-up person.</strong> One click, nothing to type.</p>
-              {demo === null && <Spinner />}
               {preparing && (
                 <div className="demo-wait" role="status">
                   <p>Getting the made-up people ready. This takes under a minute and goes on by itself{waitingFor ? `, then you are signed in as ${waitingFor.firstName}` : ''}.</p>
                   <span className="demo-wait-bar"><i /></span>
                 </div>
               )}
-              {demo !== null && !preparing && people.length > 0 && (
+              {!preparing && (
                 <div className="demo-list">
                   {people.map((person) => (
                     <button key={person.email} type="button" className="demo-btn" onClick={() => tryPerson(person)} disabled={Boolean(busy)}>
@@ -168,6 +206,7 @@ export default function Auth({ mode }) {
           )}
         </div>
       </section>
+      {signing && <SigningIn person={signing.firstName ? signing : null} />}
     </div>
   )
 }

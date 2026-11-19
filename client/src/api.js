@@ -62,7 +62,8 @@ export const api = {
   login: (email, password) => request('POST', '/user/login', { body: { email, password } }),
   // the public demo: which made-up people a visitor can be, and signing in as one of them without a password
   demoInfo: () => request('GET', '/demo'),
-  demoLogin: (userId) => request('POST', '/demo/login', { body: { userId } }),
+  // by id or by the made-up email (the sign-in page knows the email before the server has answered)
+  demoLogin: (who) => request('POST', '/demo/login', { body: who }),
   signup: (fields) => request('POST', '/user/signup', { body: fields }),
   me: () => request('GET', '/user/').then((d) => d.user),
   updateMe: (fields) => request('PATCH', '/user/', { body: fields }).then((d) => d.user),

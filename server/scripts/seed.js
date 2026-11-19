@@ -82,6 +82,11 @@ function affinity(person,category,time){
     return weights[CATEGORIES_ORDER.indexOf(category)]/Math.max(...weights)
 }
 const CATEGORIES_ORDER=['business','tech','entertainment','sport','politics']   // the order of the weights in seed-content.js
+// [NEW] everybody without a story also cares a little about one or two other topics, so their reactions are not
+// all about one thing (done after the passwords were drawn, so the passwords stay the same)
+people.filter(p=>!p.story).forEach(p=>{
+    p.weights=p.weights.map((w,i)=>CATEGORIES_ORDER[i]===p.dislikes?w:w+(chance(0.45)?between(0.5,3):0))
+})
 
 // adds one point to an interest history, exactly like interestsMiddleware.updateScore
 function track(person,category,action,time){
@@ -104,6 +109,10 @@ function addPost(author,category,text,time,{picture=false,community=null,shared=
         sharedPost:{post:shared?shared._id:null,removed:false},
         community:{communityId:community?community._id:null,removed:false},
         createdAt:new Date(time),pictures:picture?(chance(0.15)?2:1):0,
+        // [NEW] how much this post catches on: most are ordinary, a few take off (a long tail, like real feeds)
+        appeal:chance(0.12)?between(2.2,4.5):between(0.35,1.4),
+        // [NEW] some posts split opinions: more dislikes and disagreeing comments
+        controversial:chance(category==='politics'||category==='business'?0.3:0.1),
     }
     if(!community)
         post.postCategorySeq=++seqs[category]     // only posts outside communities get a place in the feed
@@ -223,6 +232,11 @@ function play(event){
                 // most requests are approved a few hours later, the newest ones stay open
                 events.pending.push({type:'approve',time:time+between(1,20)*HOUR,community,person})
             }
+        }else if(isMember&&community.manager!==person&&!community.admins.includes(person)&&(affinity(person,community.category,time)<0.45&&chance(0.3)||chance(0.03))){
+            // [NEW] lost interest: leaves the community (their posts there stay)
+            community.members=community.members.filter(m=>m.person!==person)
+            person.communities=person.communities.filter(c=>c.communityId!==community._id)
+            track(person,community.category,'leaveCommunity',time)
         }else if(isMember){
             const texts=content.COMMUNITY_POSTS[community.name]
             const unused=texts.filter(t=>!community.posts.some(p=>p.post.describtion===t))
@@ -240,29 +254,45 @@ function play(event){
     // three times out of four the post comes from the page the feed just sent (the feed shapes what people see)
     const fromFeed=person.lastFeed&&time-person.lastFeed.time<2*HOUR&&chance(0.75)?candidates.filter(p=>person.lastFeed.ids.has(String(p._id))):[]
     if(fromFeed.length) candidates=fromFeed
-    const post=weightedPick(candidates,p=>(0.12+affinity(person,p.category,time)**2)/(1+(time-p.createdAt.getTime())/DAY))
+    // [CHANGED] popular posts get seen more, and people look beyond their favourite topics more often
+    const post=weightedPick(candidates,p=>(0.22+affinity(person,p.category,time)**2)*p.appeal/(1+(time-p.createdAt.getTime())/DAY))
     if(!post) return
     const love=affinity(person,post.category,time)
     const liked=post.likes.includes(person._id), disliked=post.dislikes.includes(person._id)
-    if(person.dislikes===post.category||love<0.12){
-        if(!liked&&!disliked&&chance(person.dislikes===post.category?0.6:0.08)){
-            post.dislikes.push(person._id)
-            track(person,post.category,'dislikePost',time)
-        }
+    const hates=person.dislikes===post.category
+    // [CHANGED] more kinds of reactions: likes, dislikes, taking a like back, comments that disagree,
+    // likes and dislikes on comments, shares. How likely each one is depends on the person and the post.
+    if(liked&&chance(0.05)){
+        // changed their mind about a post they liked
+        post.likes=post.likes.filter(id=>id!==person._id)
+        person.postsLiked=person.postsLiked.filter(id=>id!==post._id)
+        track(person,post.category,'unlikePost',time)
         return
     }
-    if(!liked&&!disliked&&chance(0.25+0.6*love)){
-        post.likes.push(person._id)
-        person.postsLiked.push(post._id)
-        track(person,post.category,'likePost',time)
-        notify(post.publisher,person._id,'Post','likePost',post._id,time)
+    if(!liked&&!disliked){
+        const dislikeChance=hates?0.6:(love<0.15?0.12:0.03)+(post.controversial?0.16:0)
+        const likeChance=hates?0:Math.min(0.92,(0.18+0.6*love)*Math.min(1.6,0.55+post.appeal*0.35))
+        const r=rng()
+        if(r<dislikeChance){
+            post.dislikes.push(person._id)
+            track(person,post.category,'dislikePost',time)
+            if(hates||chance(0.6)) return
+        }else if(r<dislikeChance+likeChance){
+            post.likes.push(person._id)
+            person.postsLiked.push(post._id)
+            track(person,post.category,'likePost',time)
+            notify(post.publisher,person._id,'Post','likePost',post._id,time)
+        }
     }
+    if(hates) return
     const again=rng()
-    if(again<0.16*love+0.04){
+    if(again<0.13*love+0.05+(post.controversial?0.05:0)){
         // a comment, or a reply to one of the comments under the post
         const under=comments.filter(c=>c.postId===post._id)
-        const parent=under.length&&chance(0.35)?pick(under):null
-        const comment={_id:newId(),user:person._id,postId:post._id,content:parent?pick(content.REPLIES):pick(content.COMMENTS[post.category]),
+        const parent=under.length&&chance(0.4)?pick(under):null
+        const against=post.controversial?chance(0.4):chance(0.08)
+        const comment={_id:newId(),user:person._id,postId:post._id,
+            content:parent?pick(content.REPLIES):against?pick(content.DISAGREE):pick(content.COMMENTS[post.category]),
             repliedTo:parent?String(parent._id):null,repliedBy:[],likedBy:[],dislikedBy:[],badComment:false,positivity:true,createdAt:new Date(time+20000)}
         if(!parent&&under.some(c=>c.content===comment.content)) return
         comments.push(comment)
@@ -272,17 +302,22 @@ function play(event){
         track(person,post.category,'positiveComment',time+20000)
         notify(post.publisher,person._id,'Post','createComment',post._id,time+20000)
         if(parent) notify(parent.user,person._id,'Comment','replyComment',post._id,time+20000)
-    }else if(again<0.34&&post.comments.length){
-        // reads the comments and maybe likes one
+    }else if(again<0.4&&post.comments.length){
+        // reads the comments, and likes or dislikes one of them
         track(person,post.category,'viewComments',time+5000)
         const comment=pick(comments.filter(c=>c.postId===post._id))
-        if(comment.user!==person._id&&!comment.likedBy.includes(person._id)&&chance(0.5)){
+        const fresh=comment.user!==person._id&&!comment.likedBy.includes(person._id)&&!comment.dislikedBy.includes(person._id)
+        const disagrees=content.DISAGREE.includes(comment.content)
+        if(fresh&&chance(disagrees?0.35:0.1)){
+            comment.dislikedBy.push(person._id)
+            track(person,post.category,'dislikePositiveComment',time+15000)
+        }else if(fresh&&chance(0.55)){
             comment.likedBy.push(person._id)
             person.commentsLiked.push(comment._id)
             track(person,post.category,'likePositiveComment',time+15000)
             notify(comment.user,person._id,'Comment','likeComment',post._id,time+15000)
         }
-    }else if(again>0.985&&love>0.5&&!post.community.communityId&&!post.sharedPost.post&&!post.shares.some(s=>s.user===person._id)){
+    }else if(again>0.965&&love>0.4&&post.appeal>0.8&&!post.community.communityId&&!post.sharedPost.post&&!post.shares.some(s=>s.user===person._id)){
         const share=addPost(person,post.category,pick(content.SHARE_NOTES),time+30000,{shared:post})
         post.shares.push({user:person._id,post:share._id})
         track(person,post.category,'sharePost',time+30000)

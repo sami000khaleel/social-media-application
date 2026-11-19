@@ -5,36 +5,37 @@
 // weights: how much this person cares about [business, tech, entertainment, sport, politics]
 // activity: how often they open the app (sessions per day on average)
 const PEOPLE=[
-    // the six accounts with a story (see SEED-ACCOUNTS.md)
+    // [CHANGED] German names only. The six accounts with a story come first and keep their order (and so their
+    // passwords, which the seed's fixed random numbers give out in this order)
     {first:'Lena',last:'Hoffmann',age:27,job:'Frontend developer',city:'Cologne',country:'Germany',weights:[1,2,2,9,0],drift:[1,10,2,1,0],activity:2.2,story:'Was into sport, now into tech'},
-    {first:'Omar',last:'Haddad',age:31,job:'Backend engineer',city:'Berlin',country:'Germany',weights:[2,10,1,1,0],activity:2.0,story:'Reads mostly tech'},
-    {first:'Sofia',last:'Marin',age:29,job:'Product marketer',city:'Barcelona',country:'Spain',weights:[6,1,8,1,1],activity:1.8,story:'Likes films, music and business'},
+    {first:'Tobias',last:'Krause',age:31,job:'Backend engineer',city:'Berlin',country:'Germany',weights:[2,10,1,1,0],activity:2.0,story:'Reads mostly tech'},
+    {first:'Sophie',last:'Wagner',age:29,job:'Product marketer',city:'Hamburg',country:'Germany',weights:[6,1,8,1,1],activity:1.8,story:'Likes films, music and business'},
     {first:'Jonas',last:'Weber',age:24,job:'Physiotherapy student',city:'Aachen',country:'Germany',weights:[0,1,3,10,0],dislikes:'politics',activity:1.9,story:'Loves sport, dislikes politics'},
-    {first:'Amira',last:'Khalil',age:35,job:'Policy analyst',city:'Brussels',country:'Belgium',weights:[5,1,1,0,9],quietDays:11,activity:1.7,story:'Away for 11 days, so her feed is a mix'},
-    {first:'Nora',last:'Lang',age:22,job:'Design student',city:'Vienna',country:'Austria',weights:[1,1,1,1,1],brandNew:true,activity:0,story:'Brand new, has not liked anything yet'},
+    {first:'Anna',last:'Schneider',age:35,job:'Policy analyst',city:'Bonn',country:'Germany',weights:[5,1,1,0,9],quietDays:11,activity:1.7,story:'Away for 11 days, so her feed is a mix'},
+    {first:'Nora',last:'Lang',age:22,job:'Design student',city:'Freiburg',country:'Germany',weights:[1,1,1,1,1],brandNew:true,activity:0,story:'Brand new, has not liked anything yet'},
     // everybody else
-    {first:'Mateo',last:'Rossi',age:33,job:'Sports journalist',city:'Milan',country:'Italy',weights:[1,0,2,9,2],activity:1.5},
-    {first:'Yuki',last:'Tanaka',age:28,job:'Data scientist',city:'Munich',country:'Germany',weights:[3,9,2,0,0],activity:1.4},
-    {first:'Priya',last:'Nair',age:30,job:'Startup founder',city:'Amsterdam',country:'Netherlands',weights:[9,5,1,0,1],activity:1.6},
-    {first:'Daniel',last:'Novak',age:41,job:'Economics teacher',city:'Prague',country:'Czechia',weights:[6,1,1,2,6],activity:1.0},
-    {first:'Elif',last:'Demir',age:26,job:'Music producer',city:'Hamburg',country:'Germany',weights:[1,2,10,0,0],activity:1.5},
+    {first:'Maximilian',last:'Roth',age:33,job:'Sports journalist',city:'Munich',country:'Germany',weights:[1,0,2,9,2],activity:1.5},
+    {first:'Julia',last:'Keller',age:28,job:'Data scientist',city:'Munich',country:'Germany',weights:[3,9,2,0,0],activity:1.4},
+    {first:'Katharina',last:'Wolf',age:30,job:'Startup founder',city:'Berlin',country:'Germany',weights:[9,5,1,0,1],activity:1.6},
+    {first:'Stefan',last:'Neumann',age:41,job:'Economics teacher',city:'Dresden',country:'Germany',weights:[6,1,1,2,6],activity:1.0},
+    {first:'Laura',last:'Zimmermann',age:26,job:'Music producer',city:'Hamburg',country:'Germany',weights:[1,2,10,0,0],activity:1.5},
     {first:'Noah',last:'Fischer',age:23,job:'Computer science student',city:'Aachen',country:'Germany',weights:[0,9,3,3,0],activity:1.7},
-    {first:'Clara',last:'Dubois',age:37,job:'Film editor',city:'Lyon',country:'France',weights:[1,1,9,0,2],activity:1.1},
-    {first:'Karim',last:'Mansour',age:34,job:'Football coach',city:'Dortmund',country:'Germany',weights:[1,0,1,10,0],activity:1.4},
+    {first:'Clara',last:'Vogel',age:37,job:'Film editor',city:'Potsdam',country:'Germany',weights:[1,1,9,0,2],activity:1.1},
+    {first:'Lukas',last:'Schmitt',age:34,job:'Football coach',city:'Dortmund',country:'Germany',weights:[1,0,1,10,0],activity:1.4},
     {first:'Hannah',last:'Becker',age:32,job:'Financial analyst',city:'Frankfurt',country:'Germany',weights:[10,2,1,1,2],activity:1.2},
-    {first:'Lucas',last:'Moreau',age:29,job:'City council assistant',city:'Lille',country:'France',weights:[2,0,1,1,9],activity:1.2},
-    {first:'Nadia',last:'Rahman',age:27,job:'UX designer',city:'Rotterdam',country:'Netherlands',weights:[2,7,5,0,0],activity:1.3},
+    {first:'Paul',last:'Hartmann',age:29,job:'City council assistant',city:'Bonn',country:'Germany',weights:[2,0,1,1,9],activity:1.2},
+    {first:'Marie',last:'Koch',age:27,job:'UX designer',city:'Nuremberg',country:'Germany',weights:[2,7,5,0,0],activity:1.3},
     {first:'Felix',last:'Braun',age:38,job:'DevOps engineer',city:'Stuttgart',country:'Germany',weights:[2,9,0,3,0],activity:1.0},
-    {first:'Maya',last:'Lindqvist',age:25,job:'Marathon runner and barista',city:'Gothenburg',country:'Sweden',weights:[0,0,3,9,0],activity:1.3},
-    {first:'Ivan',last:'Petrov',age:44,job:'Small business owner',city:'Sofia',country:'Bulgaria',weights:[9,1,0,2,4],activity:0.9},
-    {first:'Sara',last:'Lund',age:31,job:'Journalist',city:'Copenhagen',country:'Denmark',weights:[3,1,2,0,9],activity:1.3},
-    {first:'Tom',last:'Baker',age:36,job:'Guitar teacher',city:'Bristol',country:'United Kingdom',weights:[0,1,9,3,0],activity:1.0},
-    {first:'Aisha',last:'Bello',age:28,job:'Mobile developer',city:'Lisbon',country:'Portugal',weights:[3,9,3,0,0],activity:1.4},
-    {first:'Leo',last:'Martins',age:21,job:'Basketball player',city:'Porto',country:'Portugal',weights:[0,2,3,9,0],activity:1.5},
+    {first:'Emma',last:'Richter',age:25,job:'Marathon runner and barista',city:'Freiburg',country:'Germany',weights:[0,0,3,9,0],activity:1.3},
+    {first:'Thomas',last:'Meyer',age:44,job:'Small business owner',city:'Hanover',country:'Germany',weights:[9,1,0,2,4],activity:0.9},
+    {first:'Sarah',last:'Lehmann',age:31,job:'Journalist',city:'Berlin',country:'Germany',weights:[3,1,2,0,9],activity:1.3},
+    {first:'Florian',last:'Huber',age:36,job:'Guitar teacher',city:'Regensburg',country:'Germany',weights:[0,1,9,3,0],activity:1.0},
+    {first:'Leonie',last:'Bauer',age:28,job:'Mobile developer',city:'Karlsruhe',country:'Germany',weights:[3,9,3,0,0],activity:1.4},
+    {first:'Moritz',last:'Schwarz',age:21,job:'Basketball player',city:'Bamberg',country:'Germany',weights:[0,2,3,9,0],activity:1.5},
     {first:'Mia',last:'Schulz',age:33,job:'Bookshop owner',city:'Leipzig',country:'Germany',weights:[5,0,8,0,2],activity:0.9},
-    {first:'Rami',last:'Saleh',age:30,job:'Cloud architect',city:'Dusseldorf',country:'Germany',weights:[4,9,1,2,0],activity:1.1},
-    {first:'Eva',last:'Kowalski',age:39,job:'Public health researcher',city:'Warsaw',country:'Poland',weights:[2,2,1,1,8],activity:0.9},
-    {first:'Ben',last:'Carter',age:26,job:'Investment associate',city:'Dublin',country:'Ireland',weights:[9,3,1,3,1],activity:1.1},
+    {first:'David',last:'Kaiser',age:30,job:'Cloud architect',city:'Dusseldorf',country:'Germany',weights:[4,9,1,2,0],activity:1.1},
+    {first:'Eva',last:'Frank',age:39,job:'Public health researcher',city:'Heidelberg',country:'Germany',weights:[2,2,1,1,8],activity:0.9},
+    {first:'Ben',last:'Werner',age:26,job:'Investment associate',city:'Frankfurt',country:'Germany',weights:[9,3,1,3,1],activity:1.1},
 ]
 
 // [text, picture?]  picture: 1 = the post gets a generated picture
@@ -148,8 +149,11 @@ const COMMENTS={
     politics:['Thanks for the summary, I had no idea about the deadline.','Going to the session on Thursday.','I see it differently, but this is a fair way to put it.','Local elections really are where it matters.','Where can I read the full proposal?','More people should read the actual text.','Good reminder.','Signed.'],
     entertainment:['Adding this to my list.','That album is a classic.','No spoilers please, I am two episodes behind.','Where was the gig?','I laughed at the last line.','Now I want to watch it again.','Great find!','Send the playlist.'],
 }
-const REPLIES=['Thanks!','Good question, I will write a follow-up.','Exactly my experience.','Ha, true.','Agreed.','I will send you the details.','That makes two of us.','Fair point.','Appreciate it.']
-const SHARE_NOTES=['Worth a read.','This.','Could not have said it better.','Sharing because more people should see it.','',''] 
+const REPLIES=['Thanks!','Good question, I will write a follow-up.','Exactly my experience.','Ha, true.','Agreed.','I will send you the details.','That makes two of us.','Fair point.','Appreciate it.',
+    'Not sure I agree, but I see where you are coming from.','Same here!','Can you say more?','Haha, guilty.','We should talk about this over coffee.','You are not wrong.']
+// [NEW] polite disagreement, so not every comment is a cheer
+const DISAGREE=['I see it differently, to be honest.','Not convinced. What would change your mind?','Interesting, but this did not work for us at all.','Respectfully, I think this misses the bigger picture.','Hmm, I had the opposite experience.','Fair, but the numbers tell another story.']
+const SHARE_NOTES=['Worth a read.','This.','Could not have said it better.','Sharing because more people should see it.','Saving this for later.','Exactly what I needed today.','Agree with every word.','',''] 
 
 const COMMUNITIES=[
     {name:'Weekend Runners',describtion:'Routes, race reports and slow Sunday kilometres. Every pace is welcome.',category:'sport',public:true,postApproval:false},
@@ -330,4 +334,4 @@ const MORE_POSTS={
     ],
 }
 for (const topic in MORE_POSTS) POSTS[topic].push(...MORE_POSTS[topic])
-module.exports={CHATS,PEOPLE,POSTS,COMMENTS,REPLIES,SHARE_NOTES,COMMUNITIES,COMMUNITY_POSTS,WORDS_A,WORDS_B}
+module.exports={CHATS,PEOPLE,POSTS,COMMENTS,REPLIES,DISAGREE,SHARE_NOTES,COMMUNITIES,COMMUNITY_POSTS,WORDS_A,WORDS_B}
